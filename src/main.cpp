@@ -6,6 +6,8 @@
 #include "tray/tray_icon_manager.h"
 #include "ui/main_window.h"
 #include "ui/gdi_renderer.h"
+#include "core/string_utils.h"
+#include "sync/update_checker.h"
 #include "resource.h"
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
@@ -58,6 +60,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
     if (config.get_config().sync_enabled) {
         sync.trigger_sync();
     }
+
+    // Check for updates asynchronously in background (no overhead, no blocks)
+    copyheap::UpdateChecker::check_for_updates_async([hwnd = mainWindow.get_hwnd()](const copyheap::UpdateInfo& info) {
+        std::wstring wVer = copyheap::utf8_to_wide(info.latest_version);
+        std::wstring msg = L"Доступна новая версия CopyHeap (" + wVer + L")!\n\nОткрыть страницу загрузки?";
+        if (MessageBoxW(hwnd, msg.c_str(), L"Обновление CopyHeap", MB_YESNO | MB_ICONINFORMATION) == IDYES) {
+            std::wstring wUrl = copyheap::utf8_to_wide(info.release_url);
+            ShellExecuteW(nullptr, L"open", wUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        }
+    });
 
     // Start clipboard listener
     clipboard.start(mainWindow.get_hwnd(), [&](const std::string& text) {

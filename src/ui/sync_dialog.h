@@ -36,6 +36,7 @@ private:
     HWND m_hSaveBtn = nullptr;
     HWND m_hCloseBtn = nullptr;
     HWND m_hHintLabel = nullptr;
+    HWND m_hCreateTokenLink = nullptr;
 
     HFONT m_hFontUI = nullptr;
     HFONT m_hFontHint = nullptr;

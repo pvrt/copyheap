@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CopyHeap — Легковесный менеджер буфера обмена для Windows</title>
+  <link rel="icon" type="image/svg+xml" href="res/icon.svg">
+  <style>
+    :root {
+      --bg: #0f141c;
+      --card-bg: #161d27;
+      --card-border: #232e3e;
+      --text-main: #f0f4f8;
+      --text-muted: #8b9bb4;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-glow: rgba(37, 99, 235, 0.25);
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Ambient background gradient */
+    .bg-glow {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 450px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, rgba(15, 20, 28, 0) 70%);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    header {
+      position: relative;
+      z-index: 1;
+      padding: 24px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand img {
+      width: 32px;
+      height: 32px;
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      max-width: 1000px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(37, 99, 235, 0.12);
+      border: 1px solid rgba(37, 99, 235, 0.3);
+      color: #93c5fd;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 20px;
+      background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.hero-desc {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      max-width: 620px;
+      margin-bottom: 36px;
+    }
+
+    .download-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 56px;
+    }
+
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--accent);
+      color: #ffffff;
+      padding: 16px 36px;
+      border-radius: 12px;
+      font-size: 1.15rem;
+      font-weight: 600;
+      text-decoration: none;
+      box-shadow: 0 4px 20px var(--accent-glow);
+      transition: all 0.2s ease;
+    }
+
+    .btn-download:hover {
+      background: var(--accent-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px rgba(37, 99, 235, 0.4);
+    }
+
+    .btn-download svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .download-meta {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Features Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      width: 100%;
+      text-align: left;
+    }
+
+    .feature-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      transition: border-color 0.2s ease;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(37, 99, 235, 0.4);
+    }
+
+    .feature-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: rgba(37, 99, 235, 0.15);
+      color: #60a5fa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      margin-bottom: 16px;
+    }
+
+    .feature-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .feature-desc {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    footer {
+      border-top: 1px solid var(--card-border);
+      padding: 24px 32px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 640px) {
+      h1 {
+        font-size: 2.2rem;
+      }
+      p.hero-desc {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-glow"></div>
+
+  <header>
+    <div class="brand">
+      <img src="res/icon.svg" alt="CopyHeap Logo">
+      <span>CopyHeap</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="badge">
+      <span>⚡ Версия 1.0.0 • Для Windows 10 & 11</span>
+    </div>
+
+    <h1>Умный буфер обмена,<br>который уважает ресурсы вашего ПК</h1>
+
+    <p class="hero-desc">
+      Мгновенно сохраняет историю копирования, позволяет закреплять важные сниппеты и синхронизирует их между устройствами со сквозным шифрованием AES-256.
+    </p>
+
+    <div class="download-container">
+      <a href="bin/CopyHeap.exe" download="CopyHeap.exe" class="btn-download">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+        </svg>
+        <span>Скачать для Windows</span>
+      </a>
+      <div class="download-meta">
+        Один файл • ~1.3 МБ • Портативная версия • Без установки и зависимостей
+      </div>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🚀</div>
+        <div class="feature-title">Нулевые зависимости</div>
+        <div class="feature-desc">
+          Написан на чистом C++20 и Win32 API. Не требует .NET, Electron, WebView или сторонних библиотек. Память в простое &lt;8 МБ, 0% CPU.
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📌</div>
+        <div class="feature-title">Закреплённые сниппеты</div>
+        <div class="feature-desc">
+          Храните до 20 избранных шаблонов и фраз, которые никогда не удалятся из истории и всегда доступны в один клик.
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🔐</div>
+        <div class="feature-title">Сквозное шифрование</div>
+        <div class="feature-desc">
+          Облачная синхронизация шифрует данные алгоритмом AES-256 прямо на вашем компьютере. Никто в сети не сможет прочесть ваши тексты.
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <div class="feature-title">Удобный поиск</div>
+        <div class="feature-desc">
+          Быстрый поиск без учёта регистра по кириллице и латинице. Нажимайте Ctrl+F в любой момент для фильтрации нужной записи.
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-title">Быстрый доступ из трея</div>
+        <div class="feature-desc">
+          Компактное контекстное меню шириной 280px открывает последние записи и закреплённые сниппеты прямо у часов.
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-title">Автономность и приватность</div>
+        <div class="feature-desc">
+          Работает без прав администратора. Вся локальная история сохраняется исключительно на вашем диске в зашифрованном профиле пользователя.
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    &copy; 2026 CopyHeap. Все права защищены.
+  </footer>
+</body>
+</html>

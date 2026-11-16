@@ -11,6 +11,7 @@ constexpr int IDC_SYNC_AUTO_CHECK    = 502;
 constexpr int IDC_SYNC_NOW_BTN       = 503;
 constexpr int IDC_SYNC_SAVE_BTN      = 504;
 constexpr int IDC_SYNC_CLOSE_BTN     = 505;
+constexpr int IDC_SYNC_CREATE_TOKEN  = 506;
 
 static const wchar_t* SYNC_DIALOG_CLASS = L"CopyHeap_SyncDialog";
 
@@ -104,10 +105,19 @@ void SyncDialog::init_controls() {
     m_hTokenLabel = CreateWindowExW(
         0, L"STATIC", L"GitHub Personal Access Token (с правами 'gist'):",
         WS_CHILD | WS_VISIBLE,
-        20, 16, 370, 18,
+        20, 16, 260, 18,
         m_hwnd, nullptr, m_hInstance, nullptr
     );
     SendMessageW(m_hTokenLabel, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
+
+    // 1.1 "Создать токен" SysLink
+    m_hCreateTokenLink = CreateWindowExW(
+        0, WC_LINK, L"<a href=\"https://github.com/settings/personal-access-tokens\">Создать токен</a>",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+        285, 16, 105, 18,
+        m_hwnd, (HMENU)(INT_PTR)IDC_SYNC_CREATE_TOKEN, m_hInstance, nullptr
+    );
+    SendMessageW(m_hCreateTokenLink, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
 
     // 2. Token Edit
     m_hTokenEdit = CreateWindowExW(
@@ -257,6 +267,18 @@ LRESULT SyncDialog::handle_message(UINT msg, WPARAM wParam, LPARAM lParam) {
             if (id == IDC_SYNC_CLOSE_BTN || id == IDCANCEL) {
                 DestroyWindow(m_hwnd);
                 return 0;
+            }
+            break;
+        }
+
+        case WM_NOTIFY: {
+            LPNMHDR pnm = reinterpret_cast<LPNMHDR>(lParam);
+            if (pnm && (pnm->code == NM_CLICK || pnm->code == NM_RETURN)) {
+                if (pnm->idFrom == IDC_SYNC_CREATE_TOKEN) {
+                    PNMLINK pNMLink = reinterpret_cast<PNMLINK>(lParam);
+                    ShellExecuteW(m_hwnd, L"open", pNMLink->item.szUrl, nullptr, nullptr, SW_SHOWNORMAL);
+                    return 0;
+                }
             }
             break;
         }

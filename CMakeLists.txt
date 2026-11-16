@@ -30,6 +30,7 @@ set(CORE_SOURCES
     src/sync/crypto_utils.cpp
     src/sync/gist_client.cpp
     src/sync/sync_manager.cpp
+    src/sync/update_checker.cpp
 )
 
 # App source files
