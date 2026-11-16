@@ -1,4 +1,5 @@
 #include "gist_client.h"
+#include "crypto_utils.h"
 #include "core/storage_manager.h"
 #include "core/string_utils.h"
 
@@ -153,13 +154,16 @@ std::optional<std::string> GistClient::find_existing_gist(const std::string& tok
 std::optional<std::string> GistClient::create_gist(const std::string& token, const std::string& initial_content) {
     if (token.empty()) return std::nullopt;
 
+    // Encrypt content with AES-256 using key derived from token
+    std::string payload = CryptoUtils::encrypt_aes256(initial_content, token);
+
     std::ostringstream ss;
     ss << "{\n"
        << "  \"description\": \"CopyHeap Pinned Snippets\",\n"
        << "  \"public\": false,\n"
        << "  \"files\": {\n"
        << "    \"copyheap_pinned.json\": {\n"
-       << "      \"content\": \"" << json_escape(initial_content) << "\"\n"
+       << "      \"content\": \"" << json_escape(payload) << "\"\n"
        << "    }\n"
        << "  }\n"
        << "}\n";
@@ -229,18 +233,33 @@ std::optional<std::vector<ClipboardItem>> GistClient::pull_pinned(const std::str
         }
     }
 
+    // If payload is encrypted, decrypt with key derived from token.
+    // Otherwise fallback to unencrypted parsing for backwards compatibility.
+    if (unescaped.find("\"encrypted\":") != std::string::npos &&
+        unescaped.find("true") != std::string::npos) {
+        auto decrypted = CryptoUtils::decrypt_aes256(unescaped, token);
+        if (decrypted) {
+            return StorageManager::deserialize_pinned_json(*decrypted);
+        } else {
+            return std::nullopt; // Bad key or corrupted data
+        }
+    }
+
     return StorageManager::deserialize_pinned_json(unescaped);
 }
 
 bool GistClient::push_pinned(const std::string& token, const std::string& gist_id, const std::string& json_content) {
     if (token.empty() || gist_id.empty()) return false;
 
+    // Encrypt content with AES-256 using key derived from token
+    std::string payload = CryptoUtils::encrypt_aes256(json_content, token);
+
     std::ostringstream ss;
     ss << "{\n"
        << "  \"description\": \"CopyHeap Pinned Snippets\",\n"
        << "  \"files\": {\n"
        << "    \"copyheap_pinned.json\": {\n"
-       << "      \"content\": \"" << json_escape(json_content) << "\"\n"
+       << "      \"content\": \"" << json_escape(payload) << "\"\n"
        << "    }\n"
        << "  }\n"
        << "}\n";

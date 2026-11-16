@@ -27,6 +27,7 @@ set(CORE_SOURCES
     src/core/fnv_hash.cpp
     src/core/string_utils.cpp
     src/core/config_manager.cpp
+    src/sync/crypto_utils.cpp
     src/sync/gist_client.cpp
     src/sync/sync_manager.cpp
 )
@@ -55,6 +56,8 @@ set(SYSTEM_LIBS
     uuid
     shlwapi
     winhttp
+    bcrypt
+    crypt32
 )
 
 # Main executable
@@ -80,6 +83,7 @@ set(TEST_SOURCES
     tests/test_ui_text.cpp
     tests/test_config.cpp
     tests/test_sync_merge.cpp
+    tests/test_crypto.cpp
     src/ui/main_window.cpp
     src/ui/sync_dialog.cpp
     src/ui/gdi_renderer.cpp
