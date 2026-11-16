@@ -5,6 +5,34 @@
 
 namespace copyheap {
 
+static HHOOK s_hMenuHook = nullptr;
+static WNDPROC s_origMenuProc = nullptr;
+
+static LRESULT CALLBACK MenuSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (msg == WM_WINDOWPOSCHANGING) {
+        WINDOWPOS* pwp = reinterpret_cast<WINDOWPOS*>(lParam);
+        if (pwp) {
+            pwp->cx = 280; // Enforce exact 280px popup menu width
+            pwp->flags &= ~SWP_NOSIZE;
+        }
+    }
+    return CallWindowProcW(s_origMenuProc, hwnd, msg, wParam, lParam);
+}
+
+static LRESULT CALLBACK MenuCbtHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode == HCBT_CREATEWND) {
+        HWND hwnd = reinterpret_cast<HWND>(wParam);
+        wchar_t clsName[32] = {0};
+        GetClassNameW(hwnd, clsName, 32);
+        if (wcscmp(clsName, L"#32768") == 0) {
+            s_origMenuProc = reinterpret_cast<WNDPROC>(
+                SetWindowLongPtrW(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(MenuSubclassProc))
+            );
+        }
+    }
+    return CallNextHookEx(s_hMenuHook, nCode, wParam, lParam);
+}
+
 TrayIconManager::TrayIconManager() {
     init_pin_bitmap();
 }
@@ -104,9 +132,9 @@ void TrayIconManager::show_menu(
     HDC hdc = GetDC(nullptr);
     HFONT oldFont = (HFONT)SelectObject(hdc, hMenuFont);
 
-    // Target text width in pixels for a 280px total menu width
-    // Menu width = text width + icon gutter (~32px) + check margin & borders (~28px) ≈ text width + 60px
-    const int targetTextWidthPx = 220;
+    // Target text width in pixels for a 280px menu
+    // Total menu width = text width + gutter/borders (approx 86px) = 188 + 86 = 274-280px
+    const int targetTextWidthPx = 188;
 
     auto format_and_truncate = [&](const std::string& raw) -> std::wstring {
         std::wstring str = utf8_to_wide(clean_single_line(raw));
@@ -143,37 +171,16 @@ void TrayIconManager::show_menu(
     };
     std::vector<PreparedItem> prepItems;
 
-    int maxTextWidth = 0;
     UINT currentCmdId = ID_TRAY_ITEM_BASE;
 
     for (const auto& item : unpinned) {
         std::wstring lbl = format_and_truncate(item.get_display_title());
-        SIZE sz{};
-        GetTextExtentPoint32W(hdc, lbl.c_str(), static_cast<int>(lbl.size()), &sz);
-        if (sz.cx > maxTextWidth) maxTextWidth = sz.cx;
         prepItems.push_back({currentCmdId++, lbl, item.content, false});
     }
 
     for (const auto& item : pinned) {
         std::wstring lbl = format_and_truncate(item.get_display_title());
-        SIZE sz{};
-        GetTextExtentPoint32W(hdc, lbl.c_str(), static_cast<int>(lbl.size()), &sz);
-        if (sz.cx > maxTextWidth) maxTextWidth = sz.cx;
         prepItems.push_back({currentCmdId++, lbl, item.content, true});
-    }
-
-    // Measure space character width to pad widest item up to targetTextWidthPx (215px)
-    // to guarantee the menu width is exactly ~280px even with short text snippets
-    SIZE szSpace{};
-    GetTextExtentPoint32W(hdc, L" ", 1, &szSpace);
-    int spaceWidth = szSpace.cx > 0 ? szSpace.cx : 4;
-
-    std::wstring paddingSpaces;
-    if (maxTextWidth < 215) {
-        int needSpaces = (215 - maxTextWidth) / spaceWidth;
-        if (needSpaces > 0) {
-            paddingSpaces.assign(needSpaces, L' ');
-        }
     }
 
     SelectObject(hdc, oldFont);
@@ -181,14 +188,12 @@ void TrayIconManager::show_menu(
     ReleaseDC(nullptr, hdc);
 
     // Insert items into popup menu
-    auto add_item_to_menu = [&](const PreparedItem& pItem, bool addPadding) {
-        std::wstring text = pItem.label + (addPadding ? paddingSpaces : L"");
-
+    auto add_item_to_menu = [&](const PreparedItem& pItem) {
         MENUITEMINFOW mii{};
         mii.cbSize = sizeof(MENUITEMINFOW);
         mii.fType = MFT_STRING;
         mii.wID = pItem.cmd_id;
-        mii.dwTypeData = const_cast<LPWSTR>(text.c_str());
+        mii.dwTypeData = const_cast<LPWSTR>(pItem.label.c_str());
 
         if (pItem.is_pinned && m_hPinBitmap) {
             // Icon placed directly in left gutter to the left of the text
@@ -203,20 +208,15 @@ void TrayIconManager::show_menu(
         m_active_menu_items.push_back({pItem.cmd_id, pItem.content});
     };
 
-    bool paddingApplied = false;
-
     // Block 1: Up to 10 unpinned items
     if (!unpinned.empty()) {
         for (const auto& p : prepItems) {
             if (!p.is_pinned) {
-                add_item_to_menu(p, !paddingApplied);
-                paddingApplied = true;
+                add_item_to_menu(p);
             }
         }
     } else {
-        std::wstring emptyText = L"(История пуста)" + paddingSpaces;
-        AppendMenuW(hMenu, MF_GRAYED | MF_STRING, 0, emptyText.c_str());
-        paddingApplied = true;
+        AppendMenuW(hMenu, MF_GRAYED | MF_STRING, 0, L"(История пуста)");
     }
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
@@ -225,8 +225,7 @@ void TrayIconManager::show_menu(
     if (!pinned.empty()) {
         for (const auto& p : prepItems) {
             if (p.is_pinned) {
-                add_item_to_menu(p, !paddingApplied);
-                paddingApplied = true;
+                add_item_to_menu(p);
             }
         }
         AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
@@ -236,14 +235,19 @@ void TrayIconManager::show_menu(
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_OPEN, L"Открыть");
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"Выход");
 
-    // Track popup menu
+    // Track popup menu with hook to enforce exact 280px window width
     POINT pt;
     GetCursorPos(&pt);
     SetForegroundWindow(m_hwnd);
 
+    s_hMenuHook = SetWindowsHookExW(WH_CBT, MenuCbtHookProc, nullptr, GetCurrentThreadId());
     TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, m_hwnd, nullptr);
-    PostMessage(m_hwnd, WM_NULL, 0, 0);
+    if (s_hMenuHook) {
+        UnhookWindowsHookEx(s_hMenuHook);
+        s_hMenuHook = nullptr;
+    }
 
+    PostMessage(m_hwnd, WM_NULL, 0, 0);
     DestroyMenu(hMenu);
 }
 
