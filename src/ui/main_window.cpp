@@ -108,6 +108,17 @@ bool MainWindow::create(HINSTANCE hInstance) {
     lfBold.lfWeight = FW_BOLD;
     m_hFontBold = CreateFontIndirectW(&lfBold);
 
+    // Calculate ideal height for single-line edit controls to vertically center text
+    HDC hdcMetrics = GetDC(m_hwnd);
+    HFONT oldFont = (HFONT)SelectObject(hdcMetrics, m_hFontUI);
+    TEXTMETRICW tm{};
+    GetTextMetricsW(hdcMetrics, &tm);
+    SelectObject(hdcMetrics, oldFont);
+    ReleaseDC(m_hwnd, hdcMetrics);
+
+    int borderY = GetSystemMetrics(SM_CYEDGE) * 2;
+    m_singleLineEditHeight = tm.tmHeight + borderY + scale_px(4);
+
     init_image_list();
     create_controls();
 
@@ -184,6 +195,7 @@ void MainWindow::create_controls() {
         m_hwnd, (HMENU)(INT_PTR)IDC_SEARCH_EDIT, m_hInstance, nullptr
     );
     SendMessageW(m_hSearchEdit, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
+    SendMessageW(m_hSearchEdit, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELPARAM(scale_px(4), scale_px(4)));
     SendMessageW(m_hSearchEdit, EM_SETCUEBANNER, TRUE, (LPARAM)L"Поиск сниппетов (Ctrl+F)...");
     SetWindowSubclass(m_hSearchEdit, SearchSubclassProc, 1, (DWORD_PTR)this);
 
@@ -273,6 +285,7 @@ void MainWindow::create_controls() {
         m_hwnd, (HMENU)(INT_PTR)IDC_TITLE_EDIT, m_hInstance, nullptr
     );
     SendMessageW(m_hTitleEdit, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
+    SendMessageW(m_hTitleEdit, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELPARAM(scale_px(4), scale_px(4)));
     SetWindowSubclass(m_hTitleEdit, EditorSubclassProc, 2, (DWORD_PTR)this);
 
     m_hContentLabel = CreateWindowExW(
@@ -311,7 +324,7 @@ void MainWindow::create_controls() {
 
 void MainWindow::layout_controls(int width, int height) {
     int pad = scale_px(10);
-    int topH = scale_px(28);
+    int topH = m_singleLineEditHeight;
     int addW = scale_px(100);
 
     // Status bar height
@@ -348,7 +361,7 @@ void MainWindow::layout_controls(int width, int height) {
     } else {
         // Screen 2: Editor layout
         int labelH = scale_px(18);
-        int titleEditH = scale_px(26);
+        int titleEditH = m_singleLineEditHeight;
         int btnH = scale_px(32);
         int btnW = (width - pad * 3) / 2;
         int btnY = height - statusH - pad - btnH;

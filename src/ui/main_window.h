@@ -102,8 +102,9 @@ private:
     bool m_isEditingExisting = false;
     std::string m_editingId;
 
-    // DPI scale
+    // DPI scale & metrics
     float m_dpiScale = 1.0f;
+    int m_singleLineEditHeight = 23;
     int scale_px(int px) const { return static_cast<int>(px * m_dpiScale); }
 };
 
