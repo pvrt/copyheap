@@ -425,11 +425,10 @@ void MainWindow::refresh_list() {
         std::wstring title = utf8_to_wide(item.get_display_title());
 
         LVITEMW lvi{};
-        lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM;
+        lvi.mask = LVIF_TEXT | LVIF_PARAM;
         lvi.iItem = static_cast<int>(i);
         lvi.iSubItem = 0;
         lvi.pszText = const_cast<LPWSTR>(title.c_str());
-        lvi.iImage = 0; // use transparent spacer to maintain row height
         lvi.lParam = static_cast<LPARAM>(i);
 
         SendMessageW(m_hListView, LVM_INSERTITEMW, 0, (LPARAM)&lvi);
@@ -492,6 +491,14 @@ void MainWindow::draw_list_item(LPNMLVCUSTOMDRAW pcd) {
     Gdiplus::Graphics g(hdc);
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
     g.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
+
+    // Erase entire row background to eliminate any GDI / listview artifacts outside the card
+    Gdiplus::SolidBrush eraseBrush(m_theme.window_bg);
+    g.FillRectangle(&eraseBrush,
+                    static_cast<float>(rc.left),
+                    static_cast<float>(rc.top),
+                    static_cast<float>(rc.right - rc.left),
+                    static_cast<float>(rc.bottom - rc.top));
 
     // Inflate slightly inside item rect to form Fluent Card shape
     Gdiplus::RectF cardRect(static_cast<float>(rc.left + scale_px(4)),
