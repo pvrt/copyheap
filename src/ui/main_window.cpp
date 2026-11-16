@@ -213,7 +213,7 @@ void MainWindow::create_controls() {
     LVCOLUMNW lvc{};
     lvc.mask = LVCF_WIDTH;
     lvc.cx = 400;
-    ListView_InsertColumn(m_hListView, 0, &lvc);
+    SendMessageW(m_hListView, LVM_INSERTCOLUMNW, 0, (LPARAM)&lvc);
 
     // Action buttons
     m_hCopyBtn = CreateWindowExW(
@@ -436,7 +436,7 @@ void MainWindow::refresh_list() {
         lvi.iImage = item.is_pinned ? 0 : 1;
         lvi.lParam = static_cast<LPARAM>(i);
 
-        ListView_InsertItem(m_hListView, &lvi);
+        SendMessageW(m_hListView, LVM_INSERTITEMW, 0, (LPARAM)&lvi);
     }
 
     on_list_selection_changed();
@@ -464,7 +464,7 @@ void MainWindow::update_status_bar() {
     if (!m_hStatusBar) return;
 
     if (!m_notificationText.empty() && now_ms() < m_notificationExpiry) {
-        SendMessageW(m_hStatusBar, SB_SETTEXT, 0, (LPARAM)m_notificationText.c_str());
+        SendMessageW(m_hStatusBar, SB_SETTEXTW, 0, (LPARAM)m_notificationText.c_str());
         return;
     }
 
@@ -472,7 +472,7 @@ void MainWindow::update_status_bar() {
     wchar_t buf[128];
     swprintf_s(buf, L"Всего: %zu (Закреплено: %zu / %zu)",
                m_storage.total_count(), m_storage.pinned_count(), MAX_PINNED_ITEMS);
-    SendMessageW(m_hStatusBar, SB_SETTEXT, 0, (LPARAM)buf);
+    SendMessageW(m_hStatusBar, SB_SETTEXTW, 0, (LPARAM)buf);
 }
 
 void MainWindow::show_notification(const std::wstring& message, int duration_ms) {

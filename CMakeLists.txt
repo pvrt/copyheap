@@ -5,6 +5,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Enable Unicode globally
+add_compile_definitions(UNICODE _UNICODE)
+
 # Ensure UTF-8 execution and source charset
 if(MSVC)
     add_compile_options(/utf-8 /W4 /permissive-)
@@ -69,6 +72,11 @@ set(TEST_SOURCES
     tests/test_storage.cpp
     tests/test_limits.cpp
     tests/test_search.cpp
+    tests/test_ui_text.cpp
+    src/ui/main_window.cpp
+    src/ui/gdi_renderer.cpp
+    src/tray/tray_icon_manager.cpp
+    src/clipboard/clipboard_watcher.cpp
 )
 
 add_executable(CopyHeap_Tests ${CORE_SOURCES} ${TEST_SOURCES})
