@@ -11,6 +11,7 @@
 #include "sync/sync_manager.h"
 #include "clipboard/clipboard_watcher.h"
 #include "tray/tray_icon_manager.h"
+#include "ui/theme.h"
 
 namespace copyheap {
 
@@ -44,11 +45,13 @@ private:
     void create_controls();
     void layout_controls(int width, int height);
     void switch_to_screen(AppScreen screen);
+    void apply_theme();
 
     void on_search_changed();
     void on_list_double_click();
     void on_list_context_menu(int x, int y);
     void on_list_selection_changed();
+    void draw_list_item(LPNMLVCUSTOMDRAW pcd);
 
     void copy_selected_item();
     void toggle_pin_selected_item();
@@ -111,6 +114,10 @@ private:
     float m_dpiScale = 1.0f;
     int m_singleLineEditHeight = 23;
     int scale_px(int px) const { return static_cast<int>(px * m_dpiScale); }
+
+    FluentTheme m_theme;
+    HBRUSH m_hWindowBrush = nullptr;
+    HBRUSH m_hInputBrush = nullptr;
 };
 
 } // namespace copyheap

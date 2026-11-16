@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "fluent_renderer.h"
 #include "sync_dialog.h"
 #include "core/string_utils.h"
 #include "resource.h"
@@ -50,6 +51,8 @@ MainWindow::~MainWindow() {
     if (m_hFontUI) DeleteObject(m_hFontUI);
     if (m_hFontBold) DeleteObject(m_hFontBold);
     if (m_hImageList) ImageList_Destroy(m_hImageList);
+    if (m_hWindowBrush) DeleteObject(m_hWindowBrush);
+    if (m_hInputBrush) DeleteObject(m_hInputBrush);
 }
 
 bool MainWindow::create(HINSTANCE hInstance) {
@@ -99,14 +102,21 @@ bool MainWindow::create(HINSTANCE hInstance) {
     m_dpiScale = dpi / 96.0f;
     if (m_dpiScale < 1.0f) m_dpiScale = 1.0f;
 
-    // Standard Segoe UI font
+    // Apply Windows 11 Fluent Theme & DWM Backdrop
+    apply_theme();
+
+    // Standard / Variable Font
+    std::wstring fontName = ThemeManager::get_best_font_name();
     NONCLIENTMETRICSW ncm{};
     ncm.cbSize = sizeof(NONCLIENTMETRICSW);
     SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICSW), &ncm, 0);
-    m_hFontUI = CreateFontIndirectW(&ncm.lfMessageFont);
 
-    LOGFONTW lfBold = ncm.lfMessageFont;
-    lfBold.lfWeight = FW_BOLD;
+    LOGFONTW lfUI = ncm.lfMessageFont;
+    wcsncpy_s(lfUI.lfFaceName, fontName.c_str(), _TRUNCATE);
+    m_hFontUI = CreateFontIndirectW(&lfUI);
+
+    LOGFONTW lfBold = lfUI;
+    lfBold.lfWeight = FW_SEMIBOLD;
     m_hFontBold = CreateFontIndirectW(&lfBold);
 
     // Calculate ideal height for single-line edit controls to vertically center text
@@ -474,6 +484,99 @@ void MainWindow::on_list_selection_changed() {
     }
 }
 
+void MainWindow::apply_theme() {
+    m_theme = ThemeManager::get_current_theme();
+    ThemeManager::apply_window_attributes(m_hwnd, m_theme.is_dark);
+
+    if (m_hWindowBrush) DeleteObject(m_hWindowBrush);
+    if (m_hInputBrush) DeleteObject(m_hInputBrush);
+
+    COLORREF crBg = RGB(m_theme.window_bg.GetR(), m_theme.window_bg.GetG(), m_theme.window_bg.GetB());
+    m_hWindowBrush = CreateSolidBrush(crBg);
+
+    COLORREF crInput = RGB(m_theme.input_bg.GetR(), m_theme.input_bg.GetG(), m_theme.input_bg.GetB());
+    m_hInputBrush = CreateSolidBrush(crInput);
+
+    if (m_hListView) {
+        COLORREF crCard = RGB(m_theme.window_bg.GetR(), m_theme.window_bg.GetG(), m_theme.window_bg.GetB());
+        COLORREF crText = RGB(m_theme.text_primary.GetR(), m_theme.text_primary.GetG(), m_theme.text_primary.GetB());
+        ListView_SetBkColor(m_hListView, crCard);
+        ListView_SetTextBkColor(m_hListView, crCard);
+        ListView_SetTextColor(m_hListView, crText);
+    }
+}
+
+void MainWindow::draw_list_item(LPNMLVCUSTOMDRAW pcd) {
+    if (!pcd || pcd->nmcd.dwItemSpec >= m_displayedItems.size()) return;
+
+    HDC hdc = pcd->nmcd.hdc;
+    RECT rc = pcd->nmcd.rc;
+    int index = static_cast<int>(pcd->nmcd.dwItemSpec);
+    const auto& item = m_displayedItems[index];
+
+    bool isSelected = (ListView_GetItemState(m_hListView, index, LVIS_SELECTED) & LVIS_SELECTED);
+    bool isHot = (pcd->nmcd.uItemState & CDIS_HOT);
+
+    Gdiplus::Graphics g(hdc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    g.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
+
+    // Inflate slightly inside item rect to form Fluent Card shape
+    Gdiplus::RectF cardRect(static_cast<float>(rc.left + scale_px(4)),
+                            static_cast<float>(rc.top + scale_px(2)),
+                            static_cast<float>(rc.right - rc.left - scale_px(8)),
+                            static_cast<float>(rc.bottom - rc.top - scale_px(4)));
+
+    Gdiplus::Color bg = isSelected ? (m_theme.is_dark ? Gdiplus::Color(255, 58, 58, 58) : Gdiplus::Color(255, 230, 240, 255))
+                                   : (isHot ? m_theme.card_bg_hover : m_theme.card_bg);
+
+    Gdiplus::Color border = isSelected ? m_theme.accent
+                                       : (isHot ? m_theme.card_border_hover : m_theme.card_border);
+
+    FluentRenderer::draw_rounded_rectangle(g, cardRect, static_cast<float>(scale_px(6)), bg, border, isSelected ? 1.5f : 1.0f);
+
+    // Draw Icon (Pin or Document)
+    float iconSize = static_cast<float>(scale_px(16));
+    float iconX = cardRect.X + static_cast<float>(scale_px(10));
+    float iconY = cardRect.Y + (cardRect.Height - iconSize) / 2.0f;
+
+    if (item.is_pinned) {
+        FluentRenderer::draw_pin_icon(g, iconX, iconY, iconSize, true, m_theme.pin_color);
+    } else {
+        Gdiplus::Pen docPen(m_theme.icon_color, 1.3f);
+        g.DrawRectangle(&docPen,
+                        static_cast<float>(iconX + scale_px(2)),
+                        static_cast<float>(iconY + scale_px(1)),
+                        static_cast<float>(scale_px(10)),
+                        static_cast<float>(scale_px(13)));
+        g.DrawLine(&docPen,
+                   static_cast<float>(iconX + scale_px(4)), static_cast<float>(iconY + scale_px(4)),
+                   static_cast<float>(iconX + scale_px(9)), static_cast<float>(iconY + scale_px(4)));
+        g.DrawLine(&docPen,
+                   static_cast<float>(iconX + scale_px(4)), static_cast<float>(iconY + scale_px(7)),
+                   static_cast<float>(iconX + scale_px(9)), static_cast<float>(iconY + scale_px(7)));
+        g.DrawLine(&docPen,
+                   static_cast<float>(iconX + scale_px(4)), static_cast<float>(iconY + scale_px(10)),
+                   static_cast<float>(iconX + scale_px(8)), static_cast<float>(iconY + scale_px(10)));
+    }
+
+    // Text Title
+    std::wstring displayTitle = utf8_to_wide(item.get_display_title());
+    float textX = iconX + iconSize + static_cast<float>(scale_px(10));
+    float textW = cardRect.X + cardRect.Width - textX - static_cast<float>(scale_px(12));
+
+    Gdiplus::RectF textRect(textX, cardRect.Y, textW, cardRect.Height);
+    Gdiplus::SolidBrush textBrush(m_theme.text_primary);
+
+    Gdiplus::Font font(hdc, m_hFontUI);
+    Gdiplus::StringFormat sf;
+    sf.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+    sf.SetTrimming(Gdiplus::StringTrimmingEllipsisCharacter);
+    sf.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap);
+
+    g.DrawString(displayTitle.c_str(), -1, &font, textRect, &sf, &textBrush);
+}
+
 void MainWindow::update_status_bar() {
     if (!m_hStatusBar) return;
 
@@ -789,7 +892,17 @@ LRESULT MainWindow::handle_message(UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_NOTIFY: {
             LPNMHDR pnm = reinterpret_cast<LPNMHDR>(lParam);
             if (pnm->idFrom == IDC_LISTVIEW) {
-                if (pnm->code == NM_DBLCLK) {
+                if (pnm->code == NM_CUSTOMDRAW) {
+                    LPNMLVCUSTOMDRAW pcd = reinterpret_cast<LPNMLVCUSTOMDRAW>(lParam);
+                    switch (pcd->nmcd.dwDrawStage) {
+                        case CDDS_PREPAINT:
+                            return CDRF_NOTIFYITEMDRAW;
+                        case CDDS_ITEMPREPAINT:
+                            draw_list_item(pcd);
+                            return CDRF_SKIPDEFAULT;
+                    }
+                    return CDRF_DODEFAULT;
+                } else if (pnm->code == NM_DBLCLK) {
                     on_list_double_click();
                     return 0;
                 } else if (pnm->code == LVN_ITEMCHANGED) {
@@ -803,6 +916,33 @@ LRESULT MainWindow::handle_message(UINT msg, WPARAM wParam, LPARAM lParam) {
                 }
             }
             break;
+        }
+
+        case WM_CTLCOLOREDIT:
+        case WM_CTLCOLORSTATIC: {
+            HDC hdcStatic = (HDC)wParam;
+            HWND hwndCtrl = (HWND)lParam;
+            if (hwndCtrl == m_hSearchEdit || hwndCtrl == m_hTitleEdit || hwndCtrl == m_hContentEdit) {
+                COLORREF crText = RGB(m_theme.text_primary.GetR(), m_theme.text_primary.GetG(), m_theme.text_primary.GetB());
+                COLORREF crBg = RGB(m_theme.input_bg.GetR(), m_theme.input_bg.GetG(), m_theme.input_bg.GetB());
+                SetTextColor(hdcStatic, crText);
+                SetBkColor(hdcStatic, crBg);
+                return (LRESULT)m_hInputBrush;
+            } else {
+                COLORREF crText = RGB(m_theme.text_primary.GetR(), m_theme.text_primary.GetG(), m_theme.text_primary.GetB());
+                COLORREF crBg = RGB(m_theme.window_bg.GetR(), m_theme.window_bg.GetG(), m_theme.window_bg.GetB());
+                SetTextColor(hdcStatic, crText);
+                SetBkColor(hdcStatic, crBg);
+                return (LRESULT)m_hWindowBrush;
+            }
+            break;
+        }
+
+        case WM_SETTINGCHANGE:
+        case WM_THEMECHANGED: {
+            apply_theme();
+            InvalidateRect(m_hwnd, nullptr, TRUE);
+            return 0;
         }
 
         case WM_SIZE: {

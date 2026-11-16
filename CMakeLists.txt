@@ -40,6 +40,8 @@ set(APP_SOURCES
     src/tray/tray_icon_manager.cpp
     src/ui/main_window.cpp
     src/ui/sync_dialog.cpp
+    src/ui/theme.cpp
+    src/ui/fluent_renderer.cpp
     src/ui/gdi_renderer.cpp
     res/CopyHeap.rc
 )
@@ -87,6 +89,8 @@ set(TEST_SOURCES
     tests/test_crypto.cpp
     src/ui/main_window.cpp
     src/ui/sync_dialog.cpp
+    src/ui/theme.cpp
+    src/ui/fluent_renderer.cpp
     src/ui/gdi_renderer.cpp
     src/tray/tray_icon_manager.cpp
     src/clipboard/clipboard_watcher.cpp
