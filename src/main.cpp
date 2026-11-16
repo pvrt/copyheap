@@ -43,8 +43,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
         mainWindow.refresh_list();
     });
 
-    // Create tray icon
-    HICON hAppIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(IDI_APP_ICON));
+    // Create tray icon with crisp small icon metrics
+    int smIconX = GetSystemMetrics(SM_CXSMICON);
+    int smIconY = GetSystemMetrics(SM_CYSMICON);
+    HICON hAppIcon = (HICON)LoadImageW(hInstance, MAKEINTRESOURCEW(IDI_APP_ICON), IMAGE_ICON,
+                                       smIconX, smIconY, LR_DEFAULTCOLOR);
+    if (!hAppIcon) {
+        hAppIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(IDI_APP_ICON));
+    }
     tray.create(mainWindow.get_hwnd(), hAppIcon, L"CopyHeap");
 
     // Message loop
