@@ -67,7 +67,7 @@
       gap: 12px;
       font-size: 1.35rem;
       font-weight: 800;
-      letter-spacing: 0.1em;
+      letter-spacing: 1px;
       text-transform: uppercase;
     }
 
@@ -108,7 +108,7 @@
     h1 {
       font-size: 3rem;
       font-weight: 800;
-      line-height: 1.15;
+      line-height: 1.4;
       letter-spacing: -0.03em;
       margin-bottom: 20px;
       background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%);
@@ -121,6 +121,7 @@
       color: var(--text-muted);
       max-width: 620px;
       margin-bottom: 36px;
+      line-height: 1.5;
     }
 
     .download-container {
@@ -171,15 +172,17 @@
       text-align: left;
     }
 
-    @media (max-width: 820px) {
+    @media (max-width: 1024px) {
       .features-grid {
         grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
       }
     }
 
-    @media (max-width: 500px) {
+    @media (max-width: 600px) {
       .features-grid {
         grid-template-columns: 1fr;
+        gap: 12px;
       }
     }
 
@@ -187,7 +190,7 @@
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 14px;
-      padding: 18px 16px;
+      padding: 20px 18px;
       transition: border-color 0.2s ease;
     }
 
@@ -196,28 +199,28 @@
     }
 
     .feature-icon {
-      width: 38px;
-      height: 38px;
+      width: 40px;
+      height: 40px;
       border-radius: 10px;
       background: rgba(37, 99, 235, 0.15);
       color: #60a5fa;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.15rem;
+      font-size: 1.2rem;
       margin-bottom: 14px;
     }
 
     .feature-title {
-      font-size: 1.02rem;
+      font-size: 1.05rem;
       font-weight: 700;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
 
     .feature-desc {
-      font-size: 0.86rem;
+      font-size: 0.9rem;
       color: var(--text-muted);
-      line-height: 1.45;
+      line-height: 1.5;
     }
 
     footer {
@@ -228,12 +231,49 @@
       font-size: 0.85rem;
     }
 
-    @media (max-width: 640px) {
+    @media (max-width: 768px) {
+      header {
+        padding: 28px 20px 12px;
+      }
+      .brand img {
+        width: 46px;
+        height: 46px;
+      }
+      .brand span {
+        font-size: 1.15rem;
+      }
+      main {
+        padding: 24px 16px 60px;
+      }
       h1 {
         font-size: 2.2rem;
+        line-height: 1.25;
+        margin-bottom: 16px;
       }
       p.hero-desc {
-        font-size: 1rem;
+        font-size: 1.05rem;
+        margin-bottom: 28px;
+      }
+      .download-container {
+        margin-bottom: 40px;
+      }
+      .btn-download {
+        padding: 14px 28px;
+        font-size: 1.05rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      h1 {
+        font-size: 1.85rem;
+      }
+      p.hero-desc {
+        font-size: 0.95rem;
+      }
+      .btn-download {
+        width: 100%;
+        justify-content: center;
+        padding: 14px 20px;
       }
     }
   </style>
@@ -276,7 +316,7 @@
         <div class="feature-icon">📌</div>
         <div class="feature-title">Закреплённые сниппеты</div>
         <div class="feature-desc">
-          Храните до 20 избранных шаблонов и фраз, которые никогда не удалятся из истории и всегда доступны в один клик.
+          Храните неограниченное число избранных шаблонов и фраз, которые никогда не удалятся из истории и всегда доступны в один клик.
         </div>
       </div>
 
