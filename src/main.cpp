@@ -1,5 +1,7 @@
 #include <windows.h>
 #include "core/storage_manager.h"
+#include "core/config_manager.h"
+#include "sync/sync_manager.h"
 #include "clipboard/clipboard_watcher.h"
 #include "tray/tray_icon_manager.h"
 #include "ui/main_window.h"
@@ -24,9 +26,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
 
     copyheap::GdiRenderer::init();
 
-    // 3. Storage manager
+    // 3. Storage manager & Config manager
     copyheap::StorageManager storage;
     storage.load_from_file(storage.get_storage_path());
+
+    copyheap::ConfigManager config;
+    config.load();
+
+    copyheap::SyncManager sync(storage, config);
 
     // 4. Clipboard watcher
     copyheap::ClipboardWatcher clipboard;
@@ -35,11 +42,21 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
     copyheap::TrayIconManager tray;
 
     // 6. Main window
-    copyheap::MainWindow mainWindow(storage, clipboard, tray);
+    copyheap::MainWindow mainWindow(storage, clipboard, tray, sync, config);
     if (!mainWindow.create(hInstance)) {
         copyheap::GdiRenderer::shutdown();
         if (hMutex) CloseHandle(hMutex);
         return 1;
+    }
+
+    // Wire sync change notification to UI
+    sync.set_on_items_changed([&mainWindow]() {
+        mainWindow.refresh_list();
+    });
+
+    // Initial background sync pull on app start
+    if (config.get_config().sync_enabled) {
+        sync.trigger_sync();
     }
 
     // Start clipboard listener

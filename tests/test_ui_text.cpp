@@ -21,8 +21,10 @@ TEST(UI, ListViewAndStatusBarUnicodeText) {
 
     ClipboardWatcher cb;
     TrayIconManager tray;
+    ConfigManager cfg;
+    SyncManager sync(sm, cfg);
 
-    MainWindow win(sm, cb, tray);
+    MainWindow win(sm, cb, tray, sync, cfg);
     ASSERT_TRUE(win.create(GetModuleHandleW(nullptr)));
 
     HWND hwnd = win.get_hwnd();

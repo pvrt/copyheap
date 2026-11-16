@@ -579,6 +579,209 @@ void StorageManager::flush_save() {
     save_to_file(path);
 }
 
+std::string StorageManager::serialize_pinned_json() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::ostringstream ss;
+    ss << "[\n";
+    for (size_t i = 0; i < m_pinned.size(); ++i) {
+        const auto& item = m_pinned[i];
+        ss << "  {\n"
+           << "    \"id\": \"" << json_escape(item.id) << "\",\n"
+           << "    \"title\": \"" << json_escape(item.title) << "\",\n"
+           << "    \"content\": \"" << json_escape(item.content) << "\",\n"
+           << "    \"content_hash\": " << item.content_hash << ",\n"
+           << "    \"is_pinned\": true,\n"
+           << "    \"created_at\": " << item.created_at << ",\n"
+           << "    \"pinned_at\": " << item.pinned_at << "\n"
+           << "  }" << (i + 1 < m_pinned.size() ? ",\n" : "\n");
+    }
+    ss << "]\n";
+    return ss.str();
+}
+
+std::vector<ClipboardItem> StorageManager::deserialize_pinned_json(const std::string& content) {
+    std::vector<ClipboardItem> items;
+    size_t pos = 0;
+
+    auto skip_ws = [&]() {
+        while (pos < content.size() && (content[pos] == ' ' || content[pos] == '\t' ||
+                                        content[pos] == '\r' || content[pos] == '\n')) {
+            pos++;
+        }
+    };
+
+    auto match_char = [&](char c) -> bool {
+        skip_ws();
+        if (pos < content.size() && content[pos] == c) {
+            pos++;
+            return true;
+        }
+        return false;
+    };
+
+    auto parse_string = [&]() -> std::string {
+        skip_ws();
+        if (pos >= content.size() || content[pos] != '"') return "";
+        pos++; // skip open quote
+        std::string s;
+        while (pos < content.size()) {
+            char c = content[pos++];
+            if (c == '"') break;
+            if (c == '\\' && pos < content.size()) {
+                char esc = content[pos++];
+                switch (esc) {
+                    case '"': s += '"'; break;
+                    case '\\': s += '\\'; break;
+                    case '/': s += '/'; break;
+                    case 'b': s += '\b'; break;
+                    case 'f': s += '\f'; break;
+                    case 'n': s += '\n'; break;
+                    case 'r': s += '\r'; break;
+                    case 't': s += '\t'; break;
+                    case 'u': {
+                        if (pos + 4 <= content.size()) {
+                            std::string hex = content.substr(pos, 4);
+                            pos += 4;
+                            try {
+                                uint32_t codepoint = std::stoul(hex, nullptr, 16);
+                                if (codepoint <= 0x7F) {
+                                    s += static_cast<char>(codepoint);
+                                } else if (codepoint <= 0x7FF) {
+                                    s += static_cast<char>(0xC0 | ((codepoint >> 6) & 0x1F));
+                                    s += static_cast<char>(0x80 | (codepoint & 0x3F));
+                                } else {
+                                    s += static_cast<char>(0xE0 | ((codepoint >> 12) & 0x0F));
+                                    s += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+                                    s += static_cast<char>(0x80 | (codepoint & 0x3F));
+                                }
+                            } catch (...) {}
+                        }
+                        break;
+                    }
+                    default: s += esc; break;
+                }
+            } else {
+                s += c;
+            }
+        }
+        return s;
+    };
+
+    if (!match_char('[')) return items;
+
+    while (pos < content.size()) {
+        skip_ws();
+        if (pos < content.size() && content[pos] == ']') {
+            pos++;
+            break;
+        }
+
+        if (!match_char('{')) break;
+
+        ClipboardItem item;
+        item.is_pinned = true;
+
+        while (pos < content.size()) {
+            skip_ws();
+            if (pos < content.size() && content[pos] == '}') {
+                pos++;
+                break;
+            }
+
+            std::string key = parse_string();
+            if (!match_char(':')) break;
+            skip_ws();
+
+            if (key == "id") {
+                item.id = parse_string();
+            } else if (key == "title") {
+                item.title = parse_string();
+            } else if (key == "content") {
+                item.content = parse_string();
+            } else if (key == "content_hash") {
+                size_t num_start = pos;
+                while (pos < content.size() && (content[pos] >= '0' && content[pos] <= '9')) pos++;
+                try {
+                    item.content_hash = std::stoull(content.substr(num_start, pos - num_start));
+                } catch (...) {}
+            } else if (key == "created_at") {
+                size_t num_start = pos;
+                while (pos < content.size() && (content[pos] == '-' || (content[pos] >= '0' && content[pos] <= '9'))) pos++;
+                try {
+                    item.created_at = std::stoll(content.substr(num_start, pos - num_start));
+                } catch (...) {}
+            } else if (key == "pinned_at") {
+                size_t num_start = pos;
+                while (pos < content.size() && (content[pos] == '-' || (content[pos] >= '0' && content[pos] <= '9'))) pos++;
+                try {
+                    item.pinned_at = std::stoll(content.substr(num_start, pos - num_start));
+                } catch (...) {}
+            } else {
+                if (content[pos] == '"') {
+                    parse_string();
+                } else {
+                    while (pos < content.size() && content[pos] != ',' && content[pos] != '}') pos++;
+                }
+            }
+
+            match_char(',');
+        }
+
+        if (item.content_hash == 0 && !item.content.empty()) {
+            item.content_hash = fnv1a_64(item.content);
+        }
+
+        if (!item.content.empty()) {
+            items.push_back(item);
+        }
+
+        match_char(',');
+    }
+
+    return items;
+}
+
+bool StorageManager::merge_pinned(const std::vector<ClipboardItem>& remote_pinned) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    bool changed = false;
+
+    // For each remote item, find matching in m_pinned by content_hash or id
+    for (const auto& rem : remote_pinned) {
+        auto it = std::find_if(m_pinned.begin(), m_pinned.end(), [&](const ClipboardItem& loc) {
+            return loc.id == rem.id || (loc.content_hash == rem.content_hash && loc.content == rem.content);
+        });
+
+        if (it != m_pinned.end()) {
+            // Conflict resolution: prefer the more recent one by pinned_at
+            if (rem.pinned_at > it->pinned_at) {
+                it->title = rem.title;
+                it->content = rem.content;
+                it->content_hash = rem.content_hash;
+                it->pinned_at = rem.pinned_at;
+                it->created_at = rem.created_at;
+                changed = true;
+            }
+        } else {
+            // New remote item
+            ClipboardItem newItem = rem;
+            newItem.is_pinned = true;
+            if (newItem.pinned_at == 0) newItem.pinned_at = now_ms();
+            m_pinned.push_back(newItem);
+            changed = true;
+        }
+    }
+
+    if (changed) {
+        sort_items_locked();
+        if (m_pinned.size() > MAX_PINNED_ITEMS) {
+            m_pinned.resize(MAX_PINNED_ITEMS);
+        }
+        request_save_debounced();
+    }
+
+    return changed;
+}
+
 void StorageManager::save_worker_loop() {
     while (true) {
         std::unique_lock<std::mutex> lock(m_mutex);

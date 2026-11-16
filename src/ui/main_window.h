@@ -7,6 +7,8 @@
 #include <optional>
 
 #include "core/storage_manager.h"
+#include "core/config_manager.h"
+#include "sync/sync_manager.h"
 #include "clipboard/clipboard_watcher.h"
 #include "tray/tray_icon_manager.h"
 
@@ -19,7 +21,7 @@ enum class AppScreen {
 
 class MainWindow {
 public:
-    MainWindow(StorageManager& storage, ClipboardWatcher& clipboard, TrayIconManager& tray);
+    MainWindow(StorageManager& storage, ClipboardWatcher& clipboard, TrayIconManager& tray, SyncManager& syncMgr, ConfigManager& configMgr);
     ~MainWindow();
 
     bool create(HINSTANCE hInstance);
@@ -59,10 +61,13 @@ private:
 
     void update_status_bar();
     void init_image_list();
+    void open_sync_dialog();
 
     StorageManager& m_storage;
     ClipboardWatcher& m_clipboard;
     TrayIconManager& m_tray;
+    SyncManager& m_sync;
+    ConfigManager& m_config;
 
     HWND m_hwnd = nullptr;
     HINSTANCE m_hInstance = nullptr;

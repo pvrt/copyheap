@@ -26,6 +26,9 @@ set(CORE_SOURCES
     src/core/storage_manager.cpp
     src/core/fnv_hash.cpp
     src/core/string_utils.cpp
+    src/core/config_manager.cpp
+    src/sync/gist_client.cpp
+    src/sync/sync_manager.cpp
 )
 
 # App source files
@@ -34,6 +37,7 @@ set(APP_SOURCES
     src/clipboard/clipboard_watcher.cpp
     src/tray/tray_icon_manager.cpp
     src/ui/main_window.cpp
+    src/ui/sync_dialog.cpp
     src/ui/gdi_renderer.cpp
     res/CopyHeap.rc
 )
@@ -50,6 +54,7 @@ set(SYSTEM_LIBS
     ole32
     uuid
     shlwapi
+    winhttp
 )
 
 # Main executable
@@ -73,7 +78,10 @@ set(TEST_SOURCES
     tests/test_limits.cpp
     tests/test_search.cpp
     tests/test_ui_text.cpp
+    tests/test_config.cpp
+    tests/test_sync_merge.cpp
     src/ui/main_window.cpp
+    src/ui/sync_dialog.cpp
     src/ui/gdi_renderer.cpp
     src/tray/tray_icon_manager.cpp
     src/clipboard/clipboard_watcher.cpp

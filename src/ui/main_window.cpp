@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "sync_dialog.h"
 #include "core/string_utils.h"
 #include "resource.h"
 
@@ -40,8 +41,8 @@ constexpr int IDM_CTX_DELETE    = 304;
 
 constexpr UINT_PTR IDT_NOTIFICATION_TIMER = 401;
 
-MainWindow::MainWindow(StorageManager& storage, ClipboardWatcher& clipboard, TrayIconManager& tray)
-    : m_storage(storage), m_clipboard(clipboard), m_tray(tray)
+MainWindow::MainWindow(StorageManager& storage, ClipboardWatcher& clipboard, TrayIconManager& tray, SyncManager& syncMgr, ConfigManager& configMgr)
+    : m_storage(storage), m_clipboard(clipboard), m_tray(tray), m_sync(syncMgr), m_config(configMgr)
 {
 }
 
@@ -512,6 +513,7 @@ void MainWindow::toggle_pin_selected_item() {
         if (res == PinResult::LimitReached) {
             show_notification(L"⚠ Достигнут лимит закрепленных записей (макс. 20)", 3000);
         } else {
+            m_sync.trigger_push_debounced();
             refresh_list();
         }
     }
@@ -527,7 +529,11 @@ void MainWindow::edit_selected_item() {
 void MainWindow::delete_selected_item() {
     int selected = ListView_GetNextItem(m_hListView, -1, LVNI_SELECTED);
     if (selected >= 0 && selected < static_cast<int>(m_displayedItems.size())) {
+        bool wasPinned = m_displayedItems[selected].is_pinned;
         m_storage.delete_item(m_displayedItems[selected].id);
+        if (wasPinned) {
+            m_sync.trigger_push_debounced();
+        }
         refresh_list();
     }
 }
@@ -568,11 +574,17 @@ void MainWindow::save_editor() {
 
     if (m_isEditingExisting) {
         m_storage.update_item(m_editingId, title, content);
+        m_sync.trigger_push_debounced();
     } else {
         m_storage.add_item(content, title, false);
     }
 
     switch_to_screen(AppScreen::List);
+}
+
+void MainWindow::open_sync_dialog() {
+    SyncDialog dlg(m_hInstance, m_hwnd, m_sync, m_config);
+    dlg.show();
 }
 
 void MainWindow::cancel_editor() {
@@ -698,6 +710,9 @@ LRESULT MainWindow::handle_message(UINT msg, WPARAM wParam, LPARAM lParam) {
                         show();
                     },
                     [this]() {
+                        open_sync_dialog();
+                    },
+                    [this]() {
                         m_storage.flush_save();
                         m_tray.remove();
                         PostQuitMessage(0);
@@ -752,6 +767,10 @@ LRESULT MainWindow::handle_message(UINT msg, WPARAM wParam, LPARAM lParam) {
 
             if (id == ID_TRAY_OPEN) {
                 show();
+                return 0;
+            }
+            if (id == ID_TRAY_SYNC) {
+                open_sync_dialog();
                 return 0;
             }
             if (id == ID_TRAY_EXIT) {

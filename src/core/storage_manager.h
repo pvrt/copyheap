@@ -32,6 +32,11 @@ public:
     PinResult set_pinned(const std::string& id, bool pinned);
     PinResult toggle_pin(const std::string& id);
 
+    // Cloud Synchronization
+    bool merge_pinned(const std::vector<ClipboardItem>& remote_pinned);
+    std::string serialize_pinned_json() const;
+    static std::vector<ClipboardItem> deserialize_pinned_json(const std::string& json_str);
+
     // Queries
     std::vector<ClipboardItem> get_all_items() const;
     std::vector<ClipboardItem> get_unpinned_items() const;
