@@ -238,7 +238,7 @@ void TrayIconManager::show_menu(
 
     // Block 3: System items
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_OPEN, L"Открыть");
-    AppendMenuW(hMenu, MF_STRING, ID_TRAY_SYNC, L"Синхронизация...");
+    AppendMenuW(hMenu, MF_STRING, ID_TRAY_SYNC, L"Настройки...");
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"Выход");
 
     // Track popup menu properly

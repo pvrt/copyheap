@@ -31,6 +31,7 @@ private:
     HWND m_hTokenLabel = nullptr;
     HWND m_hTokenEdit = nullptr;
     HWND m_hAutoSyncCheck = nullptr;
+    HWND m_hAutostartCheck = nullptr;
     HWND m_hStatusLabel = nullptr;
     HWND m_hSyncNowBtn = nullptr;
     HWND m_hSaveBtn = nullptr;

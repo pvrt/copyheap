@@ -49,8 +49,52 @@ void ConfigManager::set_last_sync_time(int64_t ts) {
     m_config.last_sync_time = ts;
 }
 
+void ConfigManager::set_autostart_enabled(bool enabled) {
+    m_config.autostart_enabled = enabled;
+}
+
 std::wstring ConfigManager::get_config_path() const {
     return m_configPath;
+}
+
+static const wchar_t* AUTOSTART_REG_KEY = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+static const wchar_t* AUTOSTART_APP_NAME = L"CopyHeap";
+
+bool ConfigManager::is_autostart_registered() {
+    HKEY hKey;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, AUTOSTART_REG_KEY, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        DWORD type = 0;
+        DWORD size = 0;
+        LONG res = RegQueryValueExW(hKey, AUTOSTART_APP_NAME, nullptr, &type, nullptr, &size);
+        RegCloseKey(hKey);
+        return (res == ERROR_SUCCESS);
+    }
+    return false;
+}
+
+bool ConfigManager::set_autostart_registered(bool enable) {
+    HKEY hKey;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, AUTOSTART_REG_KEY, 0, KEY_SET_VALUE, &hKey) != ERROR_SUCCESS) {
+        return false;
+    }
+
+    bool success = false;
+    if (enable) {
+        wchar_t exePath[MAX_PATH];
+        if (GetModuleFileNameW(nullptr, exePath, MAX_PATH) > 0) {
+            std::wstring cmd = L"\"" + std::wstring(exePath) + L"\"";
+            LONG res = RegSetValueExW(hKey, AUTOSTART_APP_NAME, 0, REG_SZ,
+                                      reinterpret_cast<const BYTE*>(cmd.c_str()),
+                                      static_cast<DWORD>((cmd.size() + 1) * sizeof(wchar_t)));
+            success = (res == ERROR_SUCCESS);
+        }
+    } else {
+        LONG res = RegDeleteValueW(hKey, AUTOSTART_APP_NAME);
+        success = (res == ERROR_SUCCESS || res == ERROR_FILE_NOT_FOUND);
+    }
+
+    RegCloseKey(hKey);
+    return success;
 }
 
 bool ConfigManager::load() {
@@ -110,6 +154,13 @@ bool ConfigManager::load() {
     m_config.sync_enabled = get_bool_field("sync_enabled");
     m_config.last_sync_time = get_int64_field("last_sync_time");
 
+    // Default autostart_enabled is true if missing from json
+    if (content.find("\"autostart_enabled\":") != std::string::npos) {
+        m_config.autostart_enabled = get_bool_field("autostart_enabled");
+    } else {
+        m_config.autostart_enabled = true;
+    }
+
     return true;
 }
 
@@ -119,7 +170,8 @@ bool ConfigManager::save() {
        << "  \"github_token\": \"" << json_escape(m_config.github_token) << "\",\n"
        << "  \"gist_id\": \"" << json_escape(m_config.gist_id) << "\",\n"
        << "  \"sync_enabled\": " << (m_config.sync_enabled ? "true" : "false") << ",\n"
-       << "  \"last_sync_time\": " << m_config.last_sync_time << "\n"
+       << "  \"last_sync_time\": " << m_config.last_sync_time << ",\n"
+       << "  \"autostart_enabled\": " << (m_config.autostart_enabled ? "true" : "false") << "\n"
        << "}\n";
 
     std::string jsonStr = ss.str();

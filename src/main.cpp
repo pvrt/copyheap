@@ -35,6 +35,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
     copyheap::ConfigManager config;
     config.load();
 
+    // Ensure autostart setting matches registry on launch (default true)
+    if (config.get_config().autostart_enabled) {
+        copyheap::ConfigManager::set_autostart_registered(true);
+    }
+
     copyheap::SyncManager sync(storage, config);
 
     // 4. Clipboard watcher

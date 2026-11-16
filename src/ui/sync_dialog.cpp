@@ -12,8 +12,9 @@ constexpr int IDC_SYNC_NOW_BTN       = 503;
 constexpr int IDC_SYNC_SAVE_BTN      = 504;
 constexpr int IDC_SYNC_CLOSE_BTN     = 505;
 constexpr int IDC_SYNC_CREATE_TOKEN  = 506;
+constexpr int IDC_SETTINGS_AUTOSTART = 507;
 
-static const wchar_t* SYNC_DIALOG_CLASS = L"CopyHeap_SyncDialog";
+static const wchar_t* SYNC_DIALOG_CLASS = L"CopyHeap_SettingsDialog";
 
 SyncDialog::SyncDialog(HINSTANCE hInstance, HWND hParent, SyncManager& syncMgr, ConfigManager& configMgr)
     : m_hInstance(hInstance), m_hParent(hParent), m_syncMgr(syncMgr), m_configMgr(configMgr)
@@ -45,8 +46,8 @@ void SyncDialog::show() {
     wc.lpszClassName = SYNC_DIALOG_CLASS;
     RegisterClassExW(&wc);
 
-    int w = 420;
-    int h = 260;
+    int w = 430;
+    int h = 295;
 
     RECT rcParent{};
     int x = 200, y = 200;
@@ -58,7 +59,7 @@ void SyncDialog::show() {
     m_hwnd = CreateWindowExW(
         WS_EX_DLGMODALFRAME | WS_EX_TOPMOST,
         SYNC_DIALOG_CLASS,
-        L"Синхронизация с GitHub Gist",
+        L"Настройки CopyHeap",
         WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
         x, y, w, h,
         m_hParent,
@@ -142,17 +143,28 @@ void SyncDialog::init_controls() {
     m_hAutoSyncCheck = CreateWindowExW(
         0, L"BUTTON", L"Включить синхронизацию закреплённых элементов",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX,
-        20, 92, 365, 20,
+        20, 92, 385, 20,
         m_hwnd, (HMENU)(INT_PTR)IDC_SYNC_AUTO_CHECK, m_hInstance, nullptr
     );
     SendMessageW(m_hAutoSyncCheck, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
     SendMessageW(m_hAutoSyncCheck, BM_SETCHECK, cfg.sync_enabled ? BST_CHECKED : BST_UNCHECKED, 0);
 
+    // 4.1 Autostart with Windows checkbox (default true)
+    m_hAutostartCheck = CreateWindowExW(
+        0, L"BUTTON", L"Запускать при старте системы",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX,
+        20, 118, 385, 20,
+        m_hwnd, (HMENU)(INT_PTR)IDC_SETTINGS_AUTOSTART, m_hInstance, nullptr
+    );
+    SendMessageW(m_hAutostartCheck, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
+    bool isAuto = cfg.autostart_enabled;
+    SendMessageW(m_hAutostartCheck, BM_SETCHECK, isAuto ? BST_CHECKED : BST_UNCHECKED, 0);
+
     // 5. Status label
     m_hStatusLabel = CreateWindowExW(
         0, L"STATIC", L"",
         WS_CHILD | WS_VISIBLE,
-        20, 122, 365, 20,
+        20, 150, 385, 20,
         m_hwnd, nullptr, m_hInstance, nullptr
     );
     SendMessageW(m_hStatusLabel, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
@@ -162,7 +174,7 @@ void SyncDialog::init_controls() {
     m_hSyncNowBtn = CreateWindowExW(
         0, L"BUTTON", L"Синхронизировать сейчас",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
-        20, 165, 175, 28,
+        20, 195, 185, 28,
         m_hwnd, (HMENU)(INT_PTR)IDC_SYNC_NOW_BTN, m_hInstance, nullptr
     );
     SendMessageW(m_hSyncNowBtn, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
@@ -170,7 +182,7 @@ void SyncDialog::init_controls() {
     m_hSaveBtn = CreateWindowExW(
         0, L"BUTTON", L"Сохранить",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
-        205, 165, 95, 28,
+        215, 195, 95, 28,
         m_hwnd, (HMENU)(INT_PTR)IDC_SYNC_SAVE_BTN, m_hInstance, nullptr
     );
     SendMessageW(m_hSaveBtn, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
@@ -178,7 +190,7 @@ void SyncDialog::init_controls() {
     m_hCloseBtn = CreateWindowExW(
         0, L"BUTTON", L"Закрыть",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
-        308, 165, 77, 28,
+        318, 195, 77, 28,
         m_hwnd, (HMENU)(INT_PTR)IDC_SYNC_CLOSE_BTN, m_hInstance, nullptr
     );
     SendMessageW(m_hCloseBtn, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
@@ -210,6 +222,11 @@ void SyncDialog::on_save_clicked() {
     std::string token = wide_to_utf8(tokenBuf);
 
     bool autoSync = (SendMessageW(m_hAutoSyncCheck, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    bool autoStart = (SendMessageW(m_hAutostartCheck, BM_GETCHECK, 0, 0) == BST_CHECKED);
+
+    // Apply autostart registry setting
+    ConfigManager::set_autostart_registered(autoStart);
+    m_configMgr.set_autostart_enabled(autoStart);
 
     if (autoSync && !token.empty()) {
         SetWindowTextW(m_hStatusLabel, L"Проверка токена и настройка Gist...");
@@ -224,7 +241,7 @@ void SyncDialog::on_save_clicked() {
             return;
         }
 
-        SetWindowTextW(m_hStatusLabel, L"Токен проверен. Настройки сохранены.");
+        SetWindowTextW(m_hStatusLabel, L"Настройки сохранены.");
     } else {
         m_configMgr.set_github_token(token);
         m_configMgr.set_sync_enabled(autoSync);

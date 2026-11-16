@@ -17,6 +17,7 @@ TEST(Config, SaveAndLoad) {
         mgr.set_gist_id("gist_abc987");
         mgr.set_sync_enabled(true);
         mgr.set_last_sync_time(1700000000);
+        mgr.set_autostart_enabled(false);
         bool ok = mgr.save();
         ASSERT_TRUE(ok);
     }
@@ -30,6 +31,7 @@ TEST(Config, SaveAndLoad) {
         ASSERT_EQ(cfg.gist_id, "gist_abc987");
         ASSERT_TRUE(cfg.sync_enabled);
         ASSERT_EQ(cfg.last_sync_time, 1700000000);
+        ASSERT_FALSE(cfg.autostart_enabled);
     }
 
     std::filesystem::remove(testPath);
