@@ -104,10 +104,12 @@ void TrayIconManager::show_menu(
     HDC hdc = GetDC(nullptr);
     HFONT oldFont = (HFONT)SelectObject(hdc, hMenuFont);
 
-    // Target text width in pixels for a 280px total menu width:
-    // Windows menu overhead with icons (gutter + margins + shortcut gap) is ~86px.
-    // 280 - 86 = 194px target text width.
-    const int targetTextWidthPx = 194;
+    const auto& unpinned = sections.first;
+    const auto& pinned = sections.second;
+
+    // Windows 10/11 popup menu total overhead (gutter/check margin + text padding + accelerator margin + borders)
+    // is ~90px. Thus to achieve exactly 280px total menu width: 280 - 90 = 190px target text width.
+    const int targetTextWidthPx = 190;
 
     auto format_and_truncate = [&](const std::string& raw) -> std::wstring {
         std::wstring str = utf8_to_wide(clean_single_line(raw));
@@ -133,9 +135,6 @@ void TrayIconManager::show_menu(
         return str;
     };
 
-    const auto& unpinned = sections.first;
-    const auto& pinned = sections.second;
-
     struct PreparedItem {
         UINT cmd_id;
         std::wstring label;
@@ -147,30 +146,43 @@ void TrayIconManager::show_menu(
     int maxTextWidth = 0;
     UINT currentCmdId = ID_TRAY_ITEM_BASE;
 
-    for (const auto& item : unpinned) {
-        std::wstring lbl = format_and_truncate(item.get_display_title());
+    if (!unpinned.empty() || !pinned.empty()) {
+        for (const auto& item : unpinned) {
+            std::wstring lbl = format_and_truncate(item.get_display_title());
+            SIZE sz{};
+            GetTextExtentPoint32W(hdc, lbl.c_str(), static_cast<int>(lbl.size()), &sz);
+            if (sz.cx > maxTextWidth) maxTextWidth = sz.cx;
+            prepItems.push_back({currentCmdId++, lbl, item.content, false});
+        }
+
+        for (const auto& item : pinned) {
+            std::wstring lbl = format_and_truncate(item.get_display_title());
+            SIZE sz{};
+            GetTextExtentPoint32W(hdc, lbl.c_str(), static_cast<int>(lbl.size()), &sz);
+            if (sz.cx > maxTextWidth) maxTextWidth = sz.cx;
+            prepItems.push_back({currentCmdId++, lbl, item.content, true});
+        }
+    } else {
+        std::wstring emptyLabel = L"(История пуста)";
         SIZE sz{};
-        GetTextExtentPoint32W(hdc, lbl.c_str(), static_cast<int>(lbl.size()), &sz);
-        if (sz.cx > maxTextWidth) maxTextWidth = sz.cx;
-        prepItems.push_back({currentCmdId++, lbl, item.content, false});
+        GetTextExtentPoint32W(hdc, emptyLabel.c_str(), static_cast<int>(emptyLabel.size()), &sz);
+        maxTextWidth = sz.cx;
     }
 
-    for (const auto& item : pinned) {
-        std::wstring lbl = format_and_truncate(item.get_display_title());
-        SIZE sz{};
-        GetTextExtentPoint32W(hdc, lbl.c_str(), static_cast<int>(lbl.size()), &sz);
-        if (sz.cx > maxTextWidth) maxTextWidth = sz.cx;
-        prepItems.push_back({currentCmdId++, lbl, item.content, true});
-    }
+    // Also measure system items to account for them
+    std::wstring openLabel = L"Открыть";
+    SIZE szOpen{};
+    GetTextExtentPoint32W(hdc, openLabel.c_str(), static_cast<int>(openLabel.size()), &szOpen);
+    if (szOpen.cx > maxTextWidth) maxTextWidth = szOpen.cx;
 
-    // Pad widest item up to 190px if text is short, to keep 280px menu width
+    // Pad widest item up to targetTextWidthPx if text is short, to keep 280px menu width
     SIZE szSpace{};
     GetTextExtentPoint32W(hdc, L" ", 1, &szSpace);
-    int spaceWidth = szSpace.cx > 0 ? szSpace.cx : 4;
+    int spaceWidth = szSpace.cx > 0 ? szSpace.cx : 3;
 
     std::wstring paddingSpaces;
-    if (maxTextWidth < 190) {
-        int needSpaces = (190 - maxTextWidth) / spaceWidth;
+    if (maxTextWidth < targetTextWidthPx) {
+        int needSpaces = (targetTextWidthPx - maxTextWidth) / spaceWidth;
         if (needSpaces > 0) {
             paddingSpaces.assign(needSpaces, L' ');
         }
