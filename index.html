@@ -51,9 +51,9 @@
     header {
       position: relative;
       z-index: 1;
-      padding: 24px 32px;
+      padding: 36px 32px 16px;
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
       max-width: 1200px;
       width: 100%;
@@ -62,16 +62,19 @@
 
     .brand {
       display: flex;
+      flex-direction: column;
       align-items: center;
       gap: 12px;
-      font-size: 1.25rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
     }
 
     .brand img {
-      width: 32px;
-      height: 32px;
+      width: 52px;
+      height: 52px;
+      filter: drop-shadow(0 4px 12px rgba(37, 99, 235, 0.35));
     }
 
     main {
@@ -250,7 +253,7 @@
       <span>⚡ Версия 1.0.0 • Для Windows 10 & 11</span>
     </div>
 
-    <h1>CopyHeap<br>менеджер буфера обмена</h1>
+    <h1>Менеджер буфера обмена</h1>
 
     <p class="hero-desc">
       Мгновенно сохраняет историю копирования, позволяет закреплять важные сниппеты и синхронизирует их между устройствами со сквозным шифрованием AES-256.
