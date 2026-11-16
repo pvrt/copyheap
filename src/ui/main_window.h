@@ -4,7 +4,6 @@
 #include <commctrl.h>
 #include <string>
 #include <vector>
-#include <memory>
 #include <optional>
 
 #include "core/storage_manager.h"
@@ -16,17 +15,6 @@ namespace copyheap {
 enum class AppScreen {
     List,
     Editor
-};
-
-enum class HoverTarget {
-    None,
-    Card,
-    PinIcon,
-    EditIcon,
-    DeleteIcon,
-    AddButton,
-    BackButton,
-    SaveButton
 };
 
 class MainWindow {
@@ -46,23 +34,31 @@ public:
 
 private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-    static LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+    static LRESULT CALLBACK SearchSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+    static LRESULT CALLBACK EditorSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 
     LRESULT handle_message(UINT msg, WPARAM wParam, LPARAM lParam);
 
-    void on_paint(HDC hdc);
-    void on_size(int width, int height);
-    void on_mouse_move(int x, int y);
-    void on_mouse_leave();
-    void on_lbutton_down(int x, int y);
-    void on_lbutton_up(int x, int y);
-    void on_mouse_wheel(short delta);
-    void on_vscroll(WPARAM wParam);
-
+    void create_controls();
+    void layout_controls(int width, int height);
     void switch_to_screen(AppScreen screen);
+
+    void on_search_changed();
+    void on_list_double_click();
+    void on_list_context_menu(int x, int y);
+    void on_list_selection_changed();
+
+    void copy_selected_item();
+    void toggle_pin_selected_item();
+    void edit_selected_item();
+    void delete_selected_item();
+
     void open_editor(const std::optional<ClipboardItem>& item = std::nullopt);
     void save_editor();
-    void update_scroll_info();
+    void cancel_editor();
+
+    void update_status_bar();
+    void init_image_list();
 
     StorageManager& m_storage;
     ClipboardWatcher& m_clipboard;
@@ -73,43 +69,40 @@ private:
 
     AppScreen m_currentScreen = AppScreen::List;
 
-    // Controls
+    // Standard Win32 Controls - Screen 1 (List)
     HWND m_hSearchEdit = nullptr;
+    HWND m_hAddBtn = nullptr;
+    HWND m_hListView = nullptr;
+    HWND m_hCopyBtn = nullptr;
+    HWND m_hPinBtn = nullptr;
+    HWND m_hEditBtn = nullptr;
+    HWND m_hDeleteBtn = nullptr;
+    HWND m_hStatusBar = nullptr;
+
+    // Standard Win32 Controls - Screen 2 (Editor)
+    HWND m_hTitleLabel = nullptr;
     HWND m_hTitleEdit = nullptr;
+    HWND m_hContentLabel = nullptr;
     HWND m_hContentEdit = nullptr;
+    HWND m_hSaveBtn = nullptr;
+    HWND m_hCancelBtn = nullptr;
+
+    // Fonts and ImageList
     HFONT m_hFontUI = nullptr;
     HFONT m_hFontBold = nullptr;
-    HFONT m_hFontMono = nullptr;
+    HIMAGELIST m_hImageList = nullptr;
 
-    // Search and display items
+    // Data
     std::string m_searchQuery;
     std::vector<ClipboardItem> m_displayedItems;
-
-    // Scrolling
-    int m_scrollPos = 0;
-    int m_maxScroll = 0;
-    int m_itemHeight = 52;
-    int m_itemSpacing = 6;
-    int m_listTop = 60;
-
-    // Hover state
-    int m_hoveredIndex = -1;
-    HoverTarget m_hoverTarget = HoverTarget::None;
-    bool m_trackingMouse = false;
-
-    // Copied feedback
-    std::string m_copiedItemId;
-    int64_t m_copiedTime = 0;
-
-    // Inline notification
-    std::wstring m_notificationMsg;
+    std::wstring m_notificationText;
     int64_t m_notificationExpiry = 0;
 
     // Editor state
     bool m_isEditingExisting = false;
     std::string m_editingId;
 
-    // DPI scaling
+    // DPI scale
     float m_dpiScale = 1.0f;
     int scale_px(int px) const { return static_cast<int>(px * m_dpiScale); }
 };

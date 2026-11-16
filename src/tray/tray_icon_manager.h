@@ -34,9 +34,12 @@ public:
     bool handle_command(UINT cmdId);
 
 private:
+    void init_pin_bitmap();
+
     HWND m_hwnd = nullptr;
     NOTIFYICONDATAW m_nid{};
     bool m_installed = false;
+    HBITMAP m_hPinBitmap = nullptr;
 
     struct MenuItemData {
         UINT cmd_id = 0;

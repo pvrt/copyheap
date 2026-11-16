@@ -1,12 +1,56 @@
 #include "tray_icon_manager.h"
 #include "core/string_utils.h"
 
+#include <gdiplus.h>
+
 namespace copyheap {
 
-TrayIconManager::TrayIconManager() = default;
+TrayIconManager::TrayIconManager() {
+    init_pin_bitmap();
+}
 
 TrayIconManager::~TrayIconManager() {
     remove();
+    if (m_hPinBitmap) {
+        DeleteObject(m_hPinBitmap);
+        m_hPinBitmap = nullptr;
+    }
+}
+
+void TrayIconManager::init_pin_bitmap() {
+    if (m_hPinBitmap) return;
+
+    BITMAPINFO bmi{};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = 16;
+    bmi.bmiHeader.biHeight = -16; // Top-down
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    void* pBits = nullptr;
+    m_hPinBitmap = CreateDIBSection(nullptr, &bmi, DIB_RGB_COLORS, &pBits, nullptr, 0);
+    if (!m_hPinBitmap || !pBits) return;
+
+    Gdiplus::Bitmap bmp(16, 16, 16 * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pBits));
+    Gdiplus::Graphics g(&bmp);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    g.Clear(Gdiplus::Color(0, 0, 0, 0));
+
+    // Draw pushpin icon in accent blue (#0067C0)
+    Gdiplus::Color pinColor(255, 0, 103, 192);
+    Gdiplus::SolidBrush brush(pinColor);
+
+    // Pin head
+    g.FillRectangle(&brush, 4.0f, 1.0f, 8.0f, 2.0f);
+    // Pin body
+    Gdiplus::PointF bodyPts[4] = {{5.0f, 3.0f}, {11.0f, 3.0f}, {10.0f, 8.5f}, {6.0f, 8.5f}};
+    g.FillPolygon(&brush, bodyPts, 4);
+    // Pin base
+    g.FillRectangle(&brush, 3.0f, 8.5f, 10.0f, 2.0f);
+    // Pin needle
+    Gdiplus::Pen pen(pinColor, 1.5f);
+    g.DrawLine(&pen, 8.0f, 10.5f, 8.0f, 14.5f);
 }
 
 bool TrayIconManager::create(HWND hwnd, HICON hIcon, const std::wstring& tooltip) {
@@ -51,40 +95,139 @@ void TrayIconManager::show_menu(
     HMENU hMenu = CreatePopupMenu();
     if (!hMenu) return;
 
-    UINT currentCmdId = ID_TRAY_ITEM_BASE;
+    // Retrieve system menu font to measure text and ensure 280px menu width
+    NONCLIENTMETRICSW ncm{};
+    ncm.cbSize = sizeof(NONCLIENTMETRICSW);
+    SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICSW), &ncm, 0);
+    HFONT hMenuFont = CreateFontIndirectW(&ncm.lfMenuFont);
 
-    auto truncate_title = [](const std::string& title, size_t maxLen = 45) -> std::wstring {
-        std::wstring wide = utf8_to_wide(title);
-        if (wide.size() > maxLen) {
-            wide = wide.substr(0, maxLen) + L"...";
+    HDC hdc = GetDC(nullptr);
+    HFONT oldFont = (HFONT)SelectObject(hdc, hMenuFont);
+
+    // Target text width in pixels for a 280px total menu width
+    // Menu width = text width + icon gutter (~32px) + check margin & borders (~28px) ≈ text width + 60px
+    const int targetTextWidthPx = 220;
+
+    auto format_and_truncate = [&](const std::string& raw) -> std::wstring {
+        std::wstring str = utf8_to_wide(clean_single_line(raw));
+        if (str.empty()) str = L"(Пусто)";
+
+        SIZE sz{};
+        GetTextExtentPoint32W(hdc, str.c_str(), static_cast<int>(str.size()), &sz);
+
+        if (sz.cx > targetTextWidthPx) {
+            std::wstring ell = L"...";
+            SIZE szEll{};
+            GetTextExtentPoint32W(hdc, ell.c_str(), static_cast<int>(ell.size()), &szEll);
+
+            while (!str.empty()) {
+                str.pop_back();
+                GetTextExtentPoint32W(hdc, str.c_str(), static_cast<int>(str.size()), &sz);
+                if (sz.cx + szEll.cx <= targetTextWidthPx) {
+                    str += ell;
+                    break;
+                }
+            }
         }
-        return wide;
+        return str;
     };
 
     const auto& unpinned = sections.first;
     const auto& pinned = sections.second;
 
+    struct PreparedItem {
+        UINT cmd_id;
+        std::wstring label;
+        std::string content;
+        bool is_pinned;
+    };
+    std::vector<PreparedItem> prepItems;
+
+    int maxTextWidth = 0;
+    UINT currentCmdId = ID_TRAY_ITEM_BASE;
+
+    for (const auto& item : unpinned) {
+        std::wstring lbl = format_and_truncate(item.get_display_title());
+        SIZE sz{};
+        GetTextExtentPoint32W(hdc, lbl.c_str(), static_cast<int>(lbl.size()), &sz);
+        if (sz.cx > maxTextWidth) maxTextWidth = sz.cx;
+        prepItems.push_back({currentCmdId++, lbl, item.content, false});
+    }
+
+    for (const auto& item : pinned) {
+        std::wstring lbl = format_and_truncate(item.get_display_title());
+        SIZE sz{};
+        GetTextExtentPoint32W(hdc, lbl.c_str(), static_cast<int>(lbl.size()), &sz);
+        if (sz.cx > maxTextWidth) maxTextWidth = sz.cx;
+        prepItems.push_back({currentCmdId++, lbl, item.content, true});
+    }
+
+    // Measure space character width to pad widest item up to targetTextWidthPx (215px)
+    // to guarantee the menu width is exactly ~280px even with short text snippets
+    SIZE szSpace{};
+    GetTextExtentPoint32W(hdc, L" ", 1, &szSpace);
+    int spaceWidth = szSpace.cx > 0 ? szSpace.cx : 4;
+
+    std::wstring paddingSpaces;
+    if (maxTextWidth < 215) {
+        int needSpaces = (215 - maxTextWidth) / spaceWidth;
+        if (needSpaces > 0) {
+            paddingSpaces.assign(needSpaces, L' ');
+        }
+    }
+
+    SelectObject(hdc, oldFont);
+    DeleteObject(hMenuFont);
+    ReleaseDC(nullptr, hdc);
+
+    // Insert items into popup menu
+    auto add_item_to_menu = [&](const PreparedItem& pItem, bool addPadding) {
+        std::wstring text = pItem.label + (addPadding ? paddingSpaces : L"");
+
+        MENUITEMINFOW mii{};
+        mii.cbSize = sizeof(MENUITEMINFOW);
+        mii.fType = MFT_STRING;
+        mii.wID = pItem.cmd_id;
+        mii.dwTypeData = const_cast<LPWSTR>(text.c_str());
+
+        if (pItem.is_pinned && m_hPinBitmap) {
+            // Icon placed directly in left gutter to the left of the text
+            mii.fMask = MIIM_STRING | MIIM_ID | MIIM_FTYPE | MIIM_BITMAP;
+            mii.hbmpItem = m_hPinBitmap;
+        } else {
+            // No icon, text aligns perfectly with pinned items
+            mii.fMask = MIIM_STRING | MIIM_ID | MIIM_FTYPE;
+        }
+
+        InsertMenuItemW(hMenu, GetMenuItemCount(hMenu), TRUE, &mii);
+        m_active_menu_items.push_back({pItem.cmd_id, pItem.content});
+    };
+
+    bool paddingApplied = false;
+
     // Block 1: Up to 10 unpinned items
     if (!unpinned.empty()) {
-        for (const auto& item : unpinned) {
-            std::wstring label = truncate_title(item.get_display_title());
-            AppendMenuW(hMenu, MF_STRING, currentCmdId, label.c_str());
-            m_active_menu_items.push_back({currentCmdId, item.content});
-            currentCmdId++;
+        for (const auto& p : prepItems) {
+            if (!p.is_pinned) {
+                add_item_to_menu(p, !paddingApplied);
+                paddingApplied = true;
+            }
         }
     } else {
-        AppendMenuW(hMenu, MF_GRAYED | MF_STRING, 0, L"(История пуста)");
+        std::wstring emptyText = L"(История пуста)" + paddingSpaces;
+        AppendMenuW(hMenu, MF_GRAYED | MF_STRING, 0, emptyText.c_str());
+        paddingApplied = true;
     }
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
 
-    // Block 2: Up to 20 pinned items
+    // Block 2: Up to 20 pinned items with pin icon in gutter
     if (!pinned.empty()) {
-        for (const auto& item : pinned) {
-            std::wstring label = L"📌 " + truncate_title(item.get_display_title());
-            AppendMenuW(hMenu, MF_STRING, currentCmdId, label.c_str());
-            m_active_menu_items.push_back({currentCmdId, item.content});
-            currentCmdId++;
+        for (const auto& p : prepItems) {
+            if (p.is_pinned) {
+                add_item_to_menu(p, !paddingApplied);
+                paddingApplied = true;
+            }
         }
         AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     }
@@ -93,7 +236,7 @@ void TrayIconManager::show_menu(
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_OPEN, L"Открыть");
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"Выход");
 
-    // Track popup menu properly: mandatory SetForegroundWindow before TrackPopupMenu
+    // Track popup menu
     POINT pt;
     GetCursorPos(&pt);
     SetForegroundWindow(m_hwnd);

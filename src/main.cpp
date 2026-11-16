@@ -16,7 +16,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int) {
         return 0;
     }
 
-    // 2. Initialize GDI+
+    // 2. Initialize Common Controls & GDI+
+    INITCOMMONCONTROLSEX icex{};
+    icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+    icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_STANDARD_CLASSES | ICC_BAR_CLASSES;
+    InitCommonControlsEx(&icex);
+
     copyheap::GdiRenderer::init();
 
     // 3. Storage manager
