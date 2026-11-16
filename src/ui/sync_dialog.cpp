@@ -40,7 +40,7 @@ void SyncDialog::show() {
     wc.lpfnWndProc = WndProc;
     wc.hInstance = m_hInstance;
     wc.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
     wc.lpszClassName = SYNC_DIALOG_CLASS;
     RegisterClassExW(&wc);
 
