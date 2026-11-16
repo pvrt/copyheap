@@ -142,9 +142,9 @@ bool MainWindow::create(HINSTANCE hInstance) {
 }
 
 void MainWindow::init_image_list() {
-    int imgW = 16;
-    int imgH = scale_px(36); // Set image height to 36px to give list items taller, comfortable spacing
-    m_hImageList = ImageList_Create(imgW, imgH, ILC_COLOR32 | ILC_MASK, 2, 2);
+    int imgW = 1;
+    int imgH = scale_px(36); // Set height to 36px to give list items taller, comfortable spacing
+    m_hImageList = ImageList_Create(imgW, imgH, ILC_COLOR32 | ILC_MASK, 1, 1);
     if (!m_hImageList) return;
 
     BITMAPINFO bmi{};
@@ -155,37 +155,16 @@ void MainWindow::init_image_list() {
     bmi.bmiHeader.biBitCount = 32;
     bmi.bmiHeader.biCompression = BI_RGB;
 
-    // 1. Create Pin / Dot bitmap (index 0)
-    void* pBitsPin = nullptr;
-    HBITMAP hPinBmp = CreateDIBSection(nullptr, &bmi, DIB_RGB_COLORS, &pBitsPin, nullptr, 0);
-    if (hPinBmp && pBitsPin) {
-        Gdiplus::Bitmap bmp(imgW, imgH, imgW * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pBitsPin));
+    // 100% transparent 1px wide spacer bitmap
+    void* pBits = nullptr;
+    HBITMAP hSpacerBmp = CreateDIBSection(nullptr, &bmi, DIB_RGB_COLORS, &pBits, nullptr, 0);
+    if (hSpacerBmp && pBits) {
+        Gdiplus::Bitmap bmp(imgW, imgH, imgW * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pBits));
         Gdiplus::Graphics g(&bmp);
-        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
         g.Clear(Gdiplus::Color(0, 0, 0, 0));
 
-        // Draw blue dot indicator centered vertically
-        Gdiplus::Color dotColor(255, 0, 103, 192); // Win 11 Accent Blue
-        Gdiplus::SolidBrush brush(dotColor);
-        float dotSize = static_cast<float>(scale_px(6));
-        float dotY = (static_cast<float>(imgH) - dotSize) / 2.0f;
-        float dotX = (static_cast<float>(imgW) - dotSize) / 2.0f;
-        g.FillEllipse(&brush, dotX, dotY, dotSize, dotSize);
-
-        ImageList_Add(m_hImageList, hPinBmp, nullptr);
-        DeleteObject(hPinBmp);
-    }
-
-    // 2. Create Empty transparent placeholder (index 1) for unpinned items
-    void* pBitsDoc = nullptr;
-    HBITMAP hDocBmp = CreateDIBSection(nullptr, &bmi, DIB_RGB_COLORS, &pBitsDoc, nullptr, 0);
-    if (hDocBmp && pBitsDoc) {
-        Gdiplus::Bitmap bmp(imgW, imgH, imgW * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pBitsDoc));
-        Gdiplus::Graphics g(&bmp);
-        g.Clear(Gdiplus::Color(0, 0, 0, 0)); // transparent spacer
-
-        ImageList_Add(m_hImageList, hDocBmp, nullptr);
-        DeleteObject(hDocBmp);
+        ImageList_Add(m_hImageList, hSpacerBmp, nullptr);
+        DeleteObject(hSpacerBmp);
     }
 }
 
@@ -450,7 +429,7 @@ void MainWindow::refresh_list() {
         lvi.iItem = static_cast<int>(i);
         lvi.iSubItem = 0;
         lvi.pszText = const_cast<LPWSTR>(title.c_str());
-        lvi.iImage = item.is_pinned ? 0 : 1;
+        lvi.iImage = 0; // use transparent spacer to maintain row height
         lvi.lParam = static_cast<LPARAM>(i);
 
         SendMessageW(m_hListView, LVM_INSERTITEMW, 0, (LPARAM)&lvi);
