@@ -142,54 +142,47 @@ bool MainWindow::create(HINSTANCE hInstance) {
 }
 
 void MainWindow::init_image_list() {
-    m_hImageList = ImageList_Create(16, 16, ILC_COLOR32 | ILC_MASK, 2, 2);
+    int imgW = 16;
+    int imgH = scale_px(36); // Set image height to 36px to give list items taller, comfortable spacing
+    m_hImageList = ImageList_Create(imgW, imgH, ILC_COLOR32 | ILC_MASK, 2, 2);
     if (!m_hImageList) return;
 
-    // 1. Create Pin bitmap (index 0)
     BITMAPINFO bmi{};
     bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth = 16;
-    bmi.bmiHeader.biHeight = -16;
+    bmi.bmiHeader.biWidth = imgW;
+    bmi.bmiHeader.biHeight = -imgH; // Top-down
     bmi.bmiHeader.biPlanes = 1;
     bmi.bmiHeader.biBitCount = 32;
     bmi.bmiHeader.biCompression = BI_RGB;
 
+    // 1. Create Pin / Dot bitmap (index 0)
     void* pBitsPin = nullptr;
     HBITMAP hPinBmp = CreateDIBSection(nullptr, &bmi, DIB_RGB_COLORS, &pBitsPin, nullptr, 0);
     if (hPinBmp && pBitsPin) {
-        Gdiplus::Bitmap bmp(16, 16, 16 * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pBitsPin));
+        Gdiplus::Bitmap bmp(imgW, imgH, imgW * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pBitsPin));
         Gdiplus::Graphics g(&bmp);
         g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
         g.Clear(Gdiplus::Color(0, 0, 0, 0));
 
-        Gdiplus::Color pinColor(255, 158, 158, 158); // Light gray
-        Gdiplus::SolidBrush brush(pinColor);
-        g.FillRectangle(&brush, 4.0f, 1.0f, 8.0f, 2.0f);
-        Gdiplus::PointF pts[4] = {{5.0f, 3.0f}, {11.0f, 3.0f}, {10.0f, 8.5f}, {6.0f, 8.5f}};
-        g.FillPolygon(&brush, pts, 4);
-        g.FillRectangle(&brush, 3.0f, 8.5f, 10.0f, 2.0f);
-        Gdiplus::Pen pen(pinColor, 1.5f);
-        g.DrawLine(&pen, 8.0f, 10.5f, 8.0f, 14.5f);
+        // Draw blue dot indicator centered vertically
+        Gdiplus::Color dotColor(255, 0, 103, 192); // Win 11 Accent Blue
+        Gdiplus::SolidBrush brush(dotColor);
+        float dotSize = static_cast<float>(scale_px(6));
+        float dotY = (static_cast<float>(imgH) - dotSize) / 2.0f;
+        float dotX = (static_cast<float>(imgW) - dotSize) / 2.0f;
+        g.FillEllipse(&brush, dotX, dotY, dotSize, dotSize);
 
         ImageList_Add(m_hImageList, hPinBmp, nullptr);
         DeleteObject(hPinBmp);
     }
 
-    // 2. Create Document / Note bitmap (index 1)
+    // 2. Create Empty transparent placeholder (index 1) for unpinned items
     void* pBitsDoc = nullptr;
     HBITMAP hDocBmp = CreateDIBSection(nullptr, &bmi, DIB_RGB_COLORS, &pBitsDoc, nullptr, 0);
     if (hDocBmp && pBitsDoc) {
-        Gdiplus::Bitmap bmp(16, 16, 16 * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pBitsDoc));
+        Gdiplus::Bitmap bmp(imgW, imgH, imgW * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pBitsDoc));
         Gdiplus::Graphics g(&bmp);
-        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-        g.Clear(Gdiplus::Color(0, 0, 0, 0));
-
-        Gdiplus::Color docColor(255, 120, 120, 120); // Dark gray
-        Gdiplus::Pen pen(docColor, 1.3f);
-        g.DrawRectangle(&pen, 3.5f, 1.5f, 9.0f, 13.0f);
-        g.DrawLine(&pen, 5.5f, 5.0f, 10.5f, 5.0f);
-        g.DrawLine(&pen, 5.5f, 8.0f, 10.5f, 8.0f);
-        g.DrawLine(&pen, 5.5f, 11.0f, 9.0f, 11.0f);
+        g.Clear(Gdiplus::Color(0, 0, 0, 0)); // transparent spacer
 
         ImageList_Add(m_hImageList, hDocBmp, nullptr);
         DeleteObject(hDocBmp);
@@ -535,35 +528,20 @@ void MainWindow::draw_list_item(LPNMLVCUSTOMDRAW pcd) {
 
     FluentRenderer::draw_rounded_rectangle(g, cardRect, static_cast<float>(scale_px(6)), bg, border, isSelected ? 1.5f : 1.0f);
 
-    // Draw Icon (Pin or Document)
-    float iconSize = static_cast<float>(scale_px(16));
-    float iconX = cardRect.X + static_cast<float>(scale_px(10));
-    float iconY = cardRect.Y + (cardRect.Height - iconSize) / 2.0f;
+    // Draw Pin indicator: modern blue dot for pinned items
+    float dotSize = static_cast<float>(scale_px(6));
+    float iconX = cardRect.X + static_cast<float>(scale_px(14));
+    float iconY = cardRect.Y + (cardRect.Height - dotSize) / 2.0f;
 
     if (item.is_pinned) {
-        FluentRenderer::draw_pin_icon(g, iconX, iconY, iconSize, true, m_theme.pin_color);
-    } else {
-        Gdiplus::Pen docPen(m_theme.icon_color, 1.3f);
-        g.DrawRectangle(&docPen,
-                        static_cast<float>(iconX + scale_px(2)),
-                        static_cast<float>(iconY + scale_px(1)),
-                        static_cast<float>(scale_px(10)),
-                        static_cast<float>(scale_px(13)));
-        g.DrawLine(&docPen,
-                   static_cast<float>(iconX + scale_px(4)), static_cast<float>(iconY + scale_px(4)),
-                   static_cast<float>(iconX + scale_px(9)), static_cast<float>(iconY + scale_px(4)));
-        g.DrawLine(&docPen,
-                   static_cast<float>(iconX + scale_px(4)), static_cast<float>(iconY + scale_px(7)),
-                   static_cast<float>(iconX + scale_px(9)), static_cast<float>(iconY + scale_px(7)));
-        g.DrawLine(&docPen,
-                   static_cast<float>(iconX + scale_px(4)), static_cast<float>(iconY + scale_px(10)),
-                   static_cast<float>(iconX + scale_px(8)), static_cast<float>(iconY + scale_px(10)));
+        Gdiplus::SolidBrush dotBrush(m_theme.accent);
+        g.FillEllipse(&dotBrush, iconX, iconY, dotSize, dotSize);
     }
 
     // Text Title
     std::wstring displayTitle = utf8_to_wide(item.get_display_title());
-    float textX = iconX + iconSize + static_cast<float>(scale_px(10));
-    float textW = cardRect.X + cardRect.Width - textX - static_cast<float>(scale_px(12));
+    float textX = iconX + dotSize + static_cast<float>(scale_px(10));
+    float textW = cardRect.X + cardRect.Width - textX - static_cast<float>(scale_px(14));
 
     Gdiplus::RectF textRect(textX, cardRect.Y, textW, cardRect.Height);
     Gdiplus::SolidBrush textBrush(m_theme.text_primary);

@@ -37,20 +37,10 @@ void TrayIconManager::init_pin_bitmap() {
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
     g.Clear(Gdiplus::Color(0, 0, 0, 0));
 
-    // Draw pushpin icon in light gray (#9E9E9E / 158, 158, 158)
-    Gdiplus::Color pinColor(255, 158, 158, 158);
-    Gdiplus::SolidBrush brush(pinColor);
-
-    // Pin head
-    g.FillRectangle(&brush, 4.0f, 1.0f, 8.0f, 2.0f);
-    // Pin body
-    Gdiplus::PointF bodyPts[4] = {{5.0f, 3.0f}, {11.0f, 3.0f}, {10.0f, 8.5f}, {6.0f, 8.5f}};
-    g.FillPolygon(&brush, bodyPts, 4);
-    // Pin base
-    g.FillRectangle(&brush, 3.0f, 8.5f, 10.0f, 2.0f);
-    // Pin needle
-    Gdiplus::Pen pen(pinColor, 1.5f);
-    g.DrawLine(&pen, 8.0f, 10.5f, 8.0f, 14.5f);
+    // Draw a neat modern blue circle dot for pinned items (#0067C0 / RGB 0, 103, 192)
+    Gdiplus::Color dotColor(255, 0, 103, 192);
+    Gdiplus::SolidBrush brush(dotColor);
+    g.FillEllipse(&brush, 4.5f, 4.5f, 7.0f, 7.0f);
 }
 
 bool TrayIconManager::create(HWND hwnd, HICON hIcon, const std::wstring& tooltip) {
