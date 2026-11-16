@@ -7,9 +7,7 @@
 namespace copyheap {
 
 constexpr size_t MAX_UNPINNED_ITEMS = 200;
-constexpr size_t MAX_PINNED_ITEMS = 20;
-constexpr size_t MAX_TRAY_UNPINNED = 10;
-constexpr size_t MAX_TRAY_PINNED = 20;
+constexpr size_t MAX_TRAY_ITEMS = 200;
 
 struct ClipboardItem {
     std::string id;

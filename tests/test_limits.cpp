@@ -22,57 +22,48 @@ TEST(Limits, Max200UnpinnedEviction) {
     ASSERT_EQ(items.back().content, "Item 5");
 }
 
-TEST(Limits, Max20PinnedLimit) {
+TEST(Limits, UnlimitedPinnedItems) {
     StorageManager sm;
     sm.clear();
 
     std::vector<std::string> ids;
-    for (int i = 0; i < 20; ++i) {
+    for (int i = 0; i < 50; ++i) {
         std::string id = sm.add_item("Pin " + std::to_string(i), "", false);
         ids.push_back(id);
     }
 
-    ASSERT_EQ(sm.unpinned_count(), 20);
+    ASSERT_EQ(sm.unpinned_count(), 50);
     ASSERT_EQ(sm.pinned_count(), 0);
 
-    // Pin all 20
-    for (int i = 0; i < 20; ++i) {
+    // Pin all 50 - unlimited pinning allowed
+    for (int i = 0; i < 50; ++i) {
         PinResult res = sm.set_pinned(ids[i], true);
         ASSERT_EQ(static_cast<int>(res), static_cast<int>(PinResult::Success));
     }
 
-    ASSERT_EQ(sm.pinned_count(), 20);
+    ASSERT_EQ(sm.pinned_count(), 50);
     ASSERT_EQ(sm.unpinned_count(), 0);
-
-    // Adding 21st pin should fail
-    std::string extraId = sm.add_item("Pin 21", "", false);
-    PinResult res = sm.set_pinned(extraId, true);
-    ASSERT_EQ(static_cast<int>(res), static_cast<int>(PinResult::LimitReached));
-    ASSERT_EQ(sm.pinned_count(), 20);
-    ASSERT_EQ(sm.unpinned_count(), 1);
 }
 
 TEST(Limits, TraySectionsLimit) {
     StorageManager sm;
     sm.clear();
 
-    // Add 25 unpinned
-    for (int i = 0; i < 25; ++i) {
+    // Add 150 unpinned
+    for (int i = 0; i < 150; ++i) {
         sm.add_or_update_from_clipboard("Unpinned " + std::to_string(i));
     }
 
-    // Add 20 pinned
-    for (int i = 0; i < 20; ++i) {
+    // Add 100 pinned
+    for (int i = 0; i < 100; ++i) {
         sm.add_item("Pinned " + std::to_string(i), "", true);
     }
 
     auto [trayUnpinned, trayPinned] = sm.get_tray_sections();
-    // Tray must have max 10 unpinned
-    ASSERT_EQ(trayUnpinned.size(), 10);
-    // Tray must have up to 20 pinned
-    ASSERT_EQ(trayPinned.size(), 20);
-    // Unpinned 24 should be top
-    ASSERT_EQ(trayUnpinned[0].content, "Unpinned 24");
+    // Tray must have up to 200 items in total
+    ASSERT_EQ(trayPinned.size(), 100);
+    ASSERT_EQ(trayUnpinned.size(), 100); // 200 - 100 = 100
+    ASSERT_EQ(trayUnpinned.size() + trayPinned.size(), 200);
 }
 
 TEST(Limits, AtomicJsonSaveAndLoad) {

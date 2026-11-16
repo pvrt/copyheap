@@ -134,9 +134,6 @@ std::string StorageManager::add_item(const std::string& content, const std::stri
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (is_pinned) {
-            if (m_pinned.size() >= MAX_PINNED_ITEMS) {
-                return "";
-            }
             m_pinned.insert(m_pinned.begin(), item);
         } else {
             m_unpinned.insert(m_unpinned.begin(), item);
@@ -197,9 +194,6 @@ PinResult StorageManager::set_pinned(const std::string& id, bool pinned) {
         // Find in unpinned
         for (auto it = m_unpinned.begin(); it != m_unpinned.end(); ++it) {
             if (it->id == id) {
-                if (m_pinned.size() >= MAX_PINNED_ITEMS) {
-                    return PinResult::LimitReached;
-                }
                 ClipboardItem item = *it;
                 item.is_pinned = true;
                 item.pinned_at = now_ms();
@@ -262,9 +256,6 @@ PinResult StorageManager::toggle_pin(const std::string& id) {
     for (const auto& item : m_unpinned) {
         if (item.id == id) {
             // currently unpinned -> pin
-            if (m_pinned.size() >= MAX_PINNED_ITEMS) {
-                return PinResult::LimitReached;
-            }
             ClipboardItem itemCopy = item;
             itemCopy.is_pinned = true;
             itemCopy.pinned_at = now_ms();
@@ -300,13 +291,17 @@ std::vector<ClipboardItem> StorageManager::get_pinned_items() const {
 
 std::pair<std::vector<ClipboardItem>, std::vector<ClipboardItem>> StorageManager::get_tray_sections() const {
     std::lock_guard<std::mutex> lock(m_mutex);
+
+    // Limit total items in tray to MAX_TRAY_ITEMS (200), prioritizing pinned items
+    size_t pinnedToTake = (std::min)(m_pinned.size(), MAX_TRAY_ITEMS);
+    size_t unpinnedSlots = MAX_TRAY_ITEMS - pinnedToTake;
+    size_t unpinnedToTake = (std::min)(m_unpinned.size(), unpinnedSlots);
+
     std::vector<ClipboardItem> trayUnpinned;
-    size_t countUnpinned = (std::min)(m_unpinned.size(), MAX_TRAY_UNPINNED);
-    trayUnpinned.assign(m_unpinned.begin(), m_unpinned.begin() + countUnpinned);
+    trayUnpinned.assign(m_unpinned.begin(), m_unpinned.begin() + unpinnedToTake);
 
     std::vector<ClipboardItem> trayPinned;
-    size_t countPinned = (std::min)(m_pinned.size(), MAX_TRAY_PINNED);
-    trayPinned.assign(m_pinned.begin(), m_pinned.begin() + countPinned);
+    trayPinned.assign(m_pinned.begin(), m_pinned.begin() + pinnedToTake);
 
     return {trayUnpinned, trayPinned};
 }
@@ -541,9 +536,7 @@ bool StorageManager::load_from_file(const std::wstring& file_path) {
         }
 
         if (item.is_pinned) {
-            if (pinned.size() < MAX_PINNED_ITEMS) {
-                pinned.push_back(item);
-            }
+            pinned.push_back(item);
         } else {
             if (unpinned.size() < MAX_UNPINNED_ITEMS) {
                 unpinned.push_back(item);
@@ -773,9 +766,6 @@ bool StorageManager::merge_pinned(const std::vector<ClipboardItem>& remote_pinne
 
     if (changed) {
         sort_items_locked();
-        if (m_pinned.size() > MAX_PINNED_ITEMS) {
-            m_pinned.resize(MAX_PINNED_ITEMS);
-        }
         request_save_debounced();
     }
 

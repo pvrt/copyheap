@@ -551,8 +551,8 @@ void MainWindow::update_status_bar() {
 
     m_notificationText.clear();
     wchar_t buf[128];
-    swprintf_s(buf, L"Всего: %zu (Закреплено: %zu / %zu)",
-               m_storage.total_count(), m_storage.pinned_count(), MAX_PINNED_ITEMS);
+    swprintf_s(buf, L"Всего: %zu (Закреплено: %zu)",
+               m_storage.total_count(), m_storage.pinned_count());
     SendMessageW(m_hStatusBar, SB_SETTEXTW, 0, (LPARAM)buf);
 }
 
@@ -576,13 +576,9 @@ void MainWindow::toggle_pin_selected_item() {
     int selected = ListView_GetNextItem(m_hListView, -1, LVNI_SELECTED);
     if (selected >= 0 && selected < static_cast<int>(m_displayedItems.size())) {
         const auto& item = m_displayedItems[selected];
-        PinResult res = m_storage.toggle_pin(item.id);
-        if (res == PinResult::LimitReached) {
-            show_notification(L"⚠ Достигнут лимит закрепленных записей (макс. 20)", 3000);
-        } else {
-            m_sync.trigger_push_debounced();
-            refresh_list();
-        }
+        m_storage.toggle_pin(item.id);
+        m_sync.trigger_push_debounced();
+        refresh_list();
     }
 }
 
