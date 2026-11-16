@@ -1,0 +1,67 @@
+import XCTest
+@testable import CopyHeap
+
+final class CopyHeapTests: XCTestCase {
+    func testFNV1aHash() {
+        let text = "Hello, CopyHeap!"
+        let hash1 = FNVHash.fnv1a64(text)
+        let hash2 = FNVHash.fnv1a64(text)
+        XCTAssertEqual(hash1, hash2)
+        XCTAssertNotEqual(hash1, 0)
+    }
+
+    func testCryptoAES256EncryptDecrypt() {
+        let secret = "My Super Secret Password / GitHub Token 12345"
+        let plaintext = "[{\"id\":\"123\",\"content\":\"Test Snippet with Russian text: Привет мир!\",\"is_pinned\":true}]"
+
+        guard let encrypted = CryptoUtils.encryptAES256(plaintext: plaintext, keyMaterial: secret) else {
+            XCTFail("Encryption returned nil")
+            return
+        }
+
+        XCTAssertTrue(encrypted.contains("\"encrypted\": true"))
+        XCTAssertTrue(encrypted.contains("\"iv\":"))
+        XCTAssertTrue(encrypted.contains("\"ciphertext\":"))
+
+        guard let decrypted = CryptoUtils.decryptAES256(payloadJSON: encrypted, keyMaterial: secret) else {
+            XCTFail("Decryption returned nil")
+            return
+        }
+
+        XCTAssertEqual(decrypted, plaintext)
+
+        // Decrypt with wrong key should fail
+        let wrongKeyDecrypted = CryptoUtils.decryptAES256(payloadJSON: encrypted, keyMaterial: "wrong_password")
+        XCTAssertNil(wrongKeyDecrypted)
+    }
+
+    func testStorageAddAndPrune() {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let storageURL = tempDir.appendingPathComponent("history.json")
+
+        let storage = StorageManager(customURL: storageURL)
+        XCTAssertEqual(storage.getAllItems().count, 0)
+
+        // Add 250 items
+        for i in 0..<250 {
+            storage.addOrUpdate(content: "Item \(i)")
+        }
+
+        // Storage limit for unpinned items is 200
+        let items = storage.getAllItems()
+        XCTAssertEqual(items.count, 200)
+        XCTAssertEqual(items.first?.content, "Item 249")
+
+        // Toggle pin
+        let firstId = items.first!.id
+        let pinRes = storage.togglePin(id: firstId)
+        XCTAssertEqual(pinRes, .success)
+        XCTAssertEqual(storage.getPinnedItems().count, 1)
+
+        // Search test
+        let searchRes = storage.search(query: "Item 249")
+        XCTAssertEqual(searchRes.count, 1)
+        XCTAssertEqual(searchRes.first?.id, firstId)
+    }
+}
