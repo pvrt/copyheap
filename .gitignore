@@ -1,0 +1,9 @@
+build/
+bin/
+.superpowers/
+.cache/
+compile_commands.json
+*.exe
+*.obj
+*.o
+*.a
