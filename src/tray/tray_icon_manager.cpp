@@ -37,8 +37,8 @@ void TrayIconManager::init_pin_bitmap() {
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
     g.Clear(Gdiplus::Color(0, 0, 0, 0));
 
-    // Draw pushpin icon in accent blue (#0067C0)
-    Gdiplus::Color pinColor(255, 0, 103, 192);
+    // Draw pushpin icon in light gray (#9E9E9E / 158, 158, 158)
+    Gdiplus::Color pinColor(255, 158, 158, 158);
     Gdiplus::SolidBrush brush(pinColor);
 
     // Pin head

@@ -50,7 +50,7 @@ void GdiRenderer::draw_rounded_rect(
 
 void GdiRenderer::draw_pin_icon(Gdiplus::Graphics& g, float x, float y, float size, bool isPinned, bool isHovered) {
     Gdiplus::Color iconColor = isPinned
-        ? Gdiplus::Color(255, 0, 103, 192) // Active blue
+        ? Gdiplus::Color(255, 158, 158, 158) // Light gray
         : (isHovered ? Gdiplus::Color(255, 40, 40, 40) : Gdiplus::Color(255, 120, 120, 120));
 
     float s = size / 16.0f;

@@ -151,7 +151,7 @@ void MainWindow::init_image_list() {
         g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
         g.Clear(Gdiplus::Color(0, 0, 0, 0));
 
-        Gdiplus::Color pinColor(255, 0, 103, 192); // Accent blue
+        Gdiplus::Color pinColor(255, 158, 158, 158); // Light gray
         Gdiplus::SolidBrush brush(pinColor);
         g.FillRectangle(&brush, 4.0f, 1.0f, 8.0f, 2.0f);
         Gdiplus::PointF pts[4] = {{5.0f, 3.0f}, {11.0f, 3.0f}, {10.0f, 8.5f}, {6.0f, 8.5f}};
@@ -201,7 +201,7 @@ void MainWindow::create_controls() {
 
     // "Добавить..." Button
     m_hAddBtn = CreateWindowExW(
-        0, L"BUTTON", L"+ Добавить...",
+        0, L"BUTTON", L"Добавить...",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
         0, 0, 0, 0,
         m_hwnd, (HMENU)(INT_PTR)IDC_ADD_BTN, m_hInstance, nullptr
