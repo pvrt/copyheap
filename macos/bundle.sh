@@ -69,4 +69,8 @@ if [ -f "../res/StatusBarIcon.png" ]; then
     cp ../res/StatusBarIcon@2x.png "$RESOURCES_DIR/"
 fi
 
+if [ -f "../res/macos_icon.pdf" ]; then
+    cp ../res/macos_icon.pdf "$RESOURCES_DIR/StatusBarIcon.pdf"
+fi
+
 echo "==> Done! App bundle created at macos/build/CopyHeap.app"
