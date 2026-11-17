@@ -75,4 +75,12 @@ if [ -f "../res/macos_icon.pdf" ]; then
     cp ../res/macos_icon.pdf "$RESOURCES_DIR/StatusBarIcon.pdf"
 fi
 
+# Ensure Finder and LaunchServices immediately recognize the icon without cache delays
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_DIR" || true
+swift -e 'import AppKit
+if let icon = NSImage(contentsOfFile: "'"$RESOURCES_DIR"'/AppIcon.icns") {
+    NSWorkspace.shared.setIcon(icon, forFile: "'"$APP_DIR"'", options: [])
+}' || true
+touch "$APP_DIR"
+
 echo "==> Done! App bundle created at macos/build/CopyHeap.app"
