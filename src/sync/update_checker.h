@@ -15,7 +15,7 @@ struct UpdateInfo {
 
 class UpdateChecker {
 public:
-    static constexpr const char* CURRENT_VERSION = "v1.0.0";
+    static constexpr const char* CURRENT_VERSION = "v1.1.0";
 
     // Checks GitHub latest release for copyheap repo via WinHTTP asynchronously
     static void check_for_updates_async(std::function<void(const UpdateInfo& info)> callback);
