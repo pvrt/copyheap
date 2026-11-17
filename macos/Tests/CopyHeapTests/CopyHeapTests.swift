@@ -64,4 +64,43 @@ final class CopyHeapTests: XCTestCase {
         XCTAssertEqual(searchRes.count, 1)
         XCTAssertEqual(searchRes.first?.id, firstId)
     }
+
+    // Test pre-computed lowercase fields
+    func testPreComputedLowercase() {
+        let item = ClipboardItem(content: "Hello WORLD Привет МИР")
+        XCTAssertEqual(item.contentLower, "hello world привет мир")
+        XCTAssertFalse(item.contentLower.isEmpty)
+    }
+
+    // Test search uses pre-computed lowercase (no crash with Unicode)
+    func testSearchUnicode() {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let storage = StorageManager(customURL: tempDir.appendingPathComponent("test.json"))
+        storage.addOrUpdate(content: "SELECT * FROM users WHERE id = 42")
+        storage.addOrUpdate(content: "Привет мир! Это тест.")
+        storage.addOrUpdate(content: "Hello World test")
+
+        // Case-insensitive search in English
+        XCTAssertEqual(storage.search(query: "SELECT").count, 1)
+        XCTAssertEqual(storage.search(query: "select").count, 1)
+
+        // Case-insensitive search in Russian
+        XCTAssertEqual(storage.search(query: "привет").count, 1)
+        XCTAssertEqual(storage.search(query: "ПРИВЕТ").count, 1)
+
+        // Empty query returns all
+        XCTAssertEqual(storage.search(query: "").count, 3)
+    }
+
+    // Test adaptive clipboard polling (verify ClipboardWatcher init doesn't crash)
+    func testClipboardWatcherInit() {
+        var received = [String]()
+        let watcher = ClipboardWatcher { text in received.append(text) }
+        watcher.start()
+        // Verify timer is running (non-nil after start)
+        // Can't easily test timer interval in unit test, just verify no crash
+        watcher.stop()
+        XCTAssertTrue(received.isEmpty) // no phantom callbacks on start
+    }
 }

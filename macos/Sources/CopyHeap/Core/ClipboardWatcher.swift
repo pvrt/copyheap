@@ -8,6 +8,11 @@ public final class ClipboardWatcher {
     private var lastTextHash: UInt64 = 0
     private let onNewClip: ChangeHandler
 
+    // Adaptive polling
+    private var idleCount = 0
+    private let fastInterval: TimeInterval = 0.35
+    private let slowInterval: TimeInterval = 1.0
+
     public init(onNewClip: @escaping ChangeHandler) {
         self.onNewClip = onNewClip
         self.lastChangeCount = NSPasteboard.general.changeCount
@@ -15,8 +20,9 @@ public final class ClipboardWatcher {
 
     public func start() {
         stop()
+        idleCount = 0
         lastChangeCount = NSPasteboard.general.changeCount
-        timer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: fastInterval, repeats: true) { [weak self] _ in
             self?.checkPasteboard()
         }
         if let timer = timer {
@@ -40,7 +46,28 @@ public final class ClipboardWatcher {
     private func checkPasteboard() {
         let pb = NSPasteboard.general
         let currentCount = pb.changeCount
-        guard currentCount != lastChangeCount else { return }
+        guard currentCount != lastChangeCount else {
+            idleCount += 1
+            // After 10 consecutive no-change checks (~3.5s), slow down to 1.0s interval
+            if idleCount == 10 {
+                timer?.invalidate()
+                timer = Timer.scheduledTimer(withTimeInterval: slowInterval, repeats: true) { [weak self] _ in
+                    self?.checkPasteboard()
+                }
+                RunLoop.main.add(timer!, forMode: .common)
+            }
+            return
+        }
+
+        // Reset to fast mode if we were in slow mode
+        if idleCount >= 10 {
+            timer?.invalidate()
+            timer = Timer.scheduledTimer(withTimeInterval: fastInterval, repeats: true) { [weak self] _ in
+                self?.checkPasteboard()
+            }
+            RunLoop.main.add(timer!, forMode: .common)
+        }
+        idleCount = 0
         lastChangeCount = currentCount
 
         // Filter out transient or password-protected types (e.g. 1Password, Bitwarden)

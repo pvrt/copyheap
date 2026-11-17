@@ -5,16 +5,18 @@ public struct MainWindowView: View {
     @ObservedObject var appState: AppState
 
     @State private var searchQuery: String = ""
+    @State private var debouncedQuery: String = ""
+    @State private var searchDebounceTask: Task<Void, Never>?
     @State private var selectedItemId: String?
     @State private var isShowingSyncSettings: Bool = false
     @State private var editingItem: ClipboardItem?
     @State private var isShowingEditor: Bool = false
 
     private var filteredItems: [ClipboardItem] {
-        if searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return appState.items
         }
-        return appState.storage.search(query: searchQuery)
+        return appState.storage.search(query: debouncedQuery)
     }
 
     private var selectedItem: ClipboardItem? {
@@ -146,6 +148,7 @@ public struct MainWindowView: View {
                         Button(action: {
                             appState.storage.togglePin(id: item.id)
                             appState.refresh()
+                            appState.syncManager.scheduleDebouncedSync()
                         }) {
                             Image(systemName: item.isPinned ? "pin.fill" : "pin")
                                 .foregroundColor(item.isPinned ? .accentColor : .primary)
@@ -199,6 +202,15 @@ public struct MainWindowView: View {
                 selectedItemId = first.id
             }
         }
+        .onChange(of: searchQuery) { newValue in
+            searchDebounceTask?.cancel()
+            searchDebounceTask = Task {
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                if !Task.isCancelled {
+                    debouncedQuery = newValue
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -244,7 +256,7 @@ private struct ItemRowView: View {
                     .font(.body)
                     .lineLimit(1)
 
-                Text(previewSnippet(item.content))
+                Text("\(previewSnippet(item.content)) • \(item.content.count) симв.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
                     .lineLimit(1)

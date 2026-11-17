@@ -70,14 +70,24 @@ public final class MenuBarManager: NSObject, NSMenuDelegate {
         menu.addItem(openItem)
 
         // 2. "Синхронизация..."
-        let syncItem = NSMenuItem(title: "Синхронизация...", action: #selector(openSyncWindow), keyEquivalent: "s")
+        let syncTitle: String
+        if appState.config.lastSyncTime > 0 {
+            let syncDate = Date(timeIntervalSince1970: Double(appState.config.lastSyncTime) / 1000.0)
+            syncTitle = "Синхронизация (обновлено: \(syncDate.formatted(date: .omitted, time: .shortened)))..."
+        } else {
+            syncTitle = "Синхронизация..."
+        }
+        let syncItem = NSMenuItem(title: syncTitle, action: #selector(openSyncWindow), keyEquivalent: "s")
         syncItem.target = self
         menu.addItem(syncItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        // 3. Pinned snippets
-        let pinned = appState.storage.getPinnedItems()
+        // 3. Pinned snippets + 4. Recent history — single storage read
+        let all = appState.storage.getAllItems()
+        let pinned = all.filter { $0.isPinned }
+        let recent = all.filter { !$0.isPinned }
+
         if !pinned.isEmpty {
             let header = NSMenuItem(title: "Закреплённые сниппеты:", action: nil, keyEquivalent: "")
             header.isEnabled = false
@@ -88,13 +98,15 @@ public final class MenuBarManager: NSObject, NSMenuDelegate {
                 let menuItem = NSMenuItem(title: title, action: #selector(clipboardMenuItemClicked(_:)), keyEquivalent: "")
                 menuItem.target = self
                 menuItem.representedObject = item
+                let date = Date(timeIntervalSince1970: Double(item.createdAt) / 1000.0)
+                let dateStr = date.formatted(date: .abbreviated, time: .shortened)
+                menuItem.toolTip = "\(dateStr) • \(item.content.count) симв."
                 menu.addItem(menuItem)
             }
             menu.addItem(NSMenuItem.separator())
         }
 
         // 4. Recent history
-        let recent = appState.storage.getUnpinnedItems()
         let headerRecent = NSMenuItem(title: "История буфера обмена:", action: nil, keyEquivalent: "")
         headerRecent.isEnabled = false
         menu.addItem(headerRecent)
@@ -109,6 +121,9 @@ public final class MenuBarManager: NSObject, NSMenuDelegate {
                 let menuItem = NSMenuItem(title: title, action: #selector(clipboardMenuItemClicked(_:)), keyEquivalent: "")
                 menuItem.target = self
                 menuItem.representedObject = item
+                let date = Date(timeIntervalSince1970: Double(item.createdAt) / 1000.0)
+                let dateStr = date.formatted(date: .abbreviated, time: .shortened)
+                menuItem.toolTip = "\(dateStr) • \(item.content.count) симв."
                 menu.addItem(menuItem)
             }
         }
@@ -188,6 +203,13 @@ public final class MenuBarManager: NSObject, NSMenuDelegate {
     }
 
     @objc private func clearHistoryClicked() {
+        let alert = NSAlert()
+        alert.messageText = "Очистить историю?"
+        alert.informativeText = "Все записи истории будут удалены. Закреплённые сниппеты сохранятся."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Очистить")
+        alert.addButton(withTitle: "Отмена")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
         appState.storage.clearHistory(keepPinned: true)
         appState.refresh()
     }

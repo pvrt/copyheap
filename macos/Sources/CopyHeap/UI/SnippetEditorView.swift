@@ -68,5 +68,6 @@ public struct SnippetEditorView: View {
             appState.storage.togglePin(id: item.id) // new created snippets start pinned
         }
         appState.refresh()
+        appState.syncManager.scheduleDebouncedSync()
     }
 }

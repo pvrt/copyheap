@@ -50,7 +50,10 @@ public final class StorageManager: @unchecked Sendable {
         if let existingIdx = items.firstIndex(where: { $0.contentHash == hash && $0.content == content }) {
             var item = items.remove(at: existingIdx)
             item.createdAt = now
-            if !title.isEmpty { item.title = title }
+            if !title.isEmpty {
+                item.title = title
+                item.titleLower = title.lowercased()
+            }
             items.insert(item, at: 0)
             scheduleSave()
             return item
@@ -100,7 +103,9 @@ public final class StorageManager: @unchecked Sendable {
         }
 
         items[idx].title = title
+        items[idx].titleLower = title.lowercased()
         items[idx].content = content
+        items[idx].contentLower = content.lowercased()
         items[idx].contentHash = FNVHash.fnv1a64(content)
         scheduleSave()
         return true
@@ -132,16 +137,13 @@ public final class StorageManager: @unchecked Sendable {
     }
 
     public func search(query: String) -> [ClipboardItem] {
+        let snapshot: [ClipboardItem]
         lock.lock()
-        defer { lock.unlock() }
-
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if trimmed.isEmpty { return items }
-
-        return items.filter {
-            $0.title.lowercased().contains(trimmed) ||
-            $0.content.lowercased().contains(trimmed)
-        }
+        snapshot = items
+        lock.unlock()
+        let lower = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if lower.isEmpty { return snapshot }
+        return snapshot.filter { $0.contentLower.contains(lower) || $0.titleLower.contains(lower) }
     }
 
     public func mergePinnedFromRemote(_ remoteItems: [ClipboardItem]) {
@@ -153,6 +155,7 @@ public final class StorageManager: @unchecked Sendable {
                 items[existingIdx].isPinned = true
                 if items[existingIdx].title.isEmpty && !remote.title.isEmpty {
                     items[existingIdx].title = remote.title
+                    items[existingIdx].titleLower = remote.title.lowercased()
                 }
             } else {
                 var newPinned = remote
@@ -184,17 +187,19 @@ public final class StorageManager: @unchecked Sendable {
         saveQueue.asyncAfter(deadline: .now() + 0.3, execute: work)
     }
 
+    // No outer lock — saveToFile() acquires its own lock internally (via snapshot copy)
     public func flush() {
-        lock.lock()
-        defer { lock.unlock() }
         saveWorkItem?.cancel()
         saveToFile()
     }
 
     private func saveToFile() {
+        lock.lock()
+        let snapshot = items
+        lock.unlock()
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted]
-        guard let data = try? encoder.encode(items) else { return }
+        // No prettyPrinted — saves ~2× disk space
+        guard let data = try? encoder.encode(snapshot) else { return }
         try? data.write(to: storageURL, options: .atomic)
     }
 

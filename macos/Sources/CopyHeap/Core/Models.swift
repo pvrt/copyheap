@@ -8,6 +8,9 @@ public struct ClipboardItem: Identifiable, Codable, Equatable {
     public var isPinned: Bool
     public var createdAt: Int64
     public var pinnedAt: Int64
+    // Pre-computed lowercase for fast search; persisted in JSON to avoid recompute on load
+    public var contentLower: String
+    public var titleLower: String
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -17,6 +20,8 @@ public struct ClipboardItem: Identifiable, Codable, Equatable {
         case isPinned = "is_pinned"
         case createdAt = "created_at"
         case pinnedAt = "pinned_at"
+        case contentLower = "content_lower"
+        case titleLower = "title_lower"
     }
 
     public init(
@@ -35,6 +40,22 @@ public struct ClipboardItem: Identifiable, Codable, Equatable {
         self.isPinned = isPinned
         self.createdAt = createdAt
         self.pinnedAt = pinnedAt
+        self.contentLower = content.lowercased()
+        self.titleLower = title.lowercased()
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        content = try container.decode(String.self, forKey: .content)
+        contentHash = try container.decode(UInt64.self, forKey: .contentHash)
+        isPinned = try container.decode(Bool.self, forKey: .isPinned)
+        createdAt = try container.decode(Int64.self, forKey: .createdAt)
+        pinnedAt = try container.decode(Int64.self, forKey: .pinnedAt)
+        // Backward compatibility: fall back to computing from content/title if not in JSON
+        contentLower = try container.decodeIfPresent(String.self, forKey: .contentLower) ?? content.lowercased()
+        titleLower = try container.decodeIfPresent(String.self, forKey: .titleLower) ?? title.lowercased()
     }
 
     public var displayTitle: String {
