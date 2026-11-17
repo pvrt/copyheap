@@ -35,6 +35,8 @@ cat << 'EOF' > "$CONTENTS_DIR/Info.plist"
     <string>1.1.0</string>
     <key>CFBundleVersion</key>
     <string>1.1.0</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
