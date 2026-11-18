@@ -292,10 +292,10 @@ std::vector<ClipboardItem> StorageManager::get_pinned_items() const {
 std::pair<std::vector<ClipboardItem>, std::vector<ClipboardItem>> StorageManager::get_tray_sections() const {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    // Limit total items in tray to MAX_TRAY_ITEMS (200), prioritizing pinned items
-    size_t pinnedToTake = (std::min)(m_pinned.size(), MAX_TRAY_ITEMS);
-    size_t unpinnedSlots = MAX_TRAY_ITEMS - pinnedToTake;
-    size_t unpinnedToTake = (std::min)(m_unpinned.size(), unpinnedSlots);
+    // Limit unpinned recent items in tray to MAX_TRAY_UNPINNED (30)
+    size_t unpinnedToTake = (std::min)(m_unpinned.size(), MAX_TRAY_UNPINNED);
+    // Pinned items can take remaining tray slots up to MAX_TRAY_ITEMS
+    size_t pinnedToTake = (std::min)(m_pinned.size(), MAX_TRAY_ITEMS - unpinnedToTake);
 
     std::vector<ClipboardItem> trayUnpinned;
     trayUnpinned.assign(m_unpinned.begin(), m_unpinned.begin() + unpinnedToTake);

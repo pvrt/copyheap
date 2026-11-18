@@ -116,7 +116,7 @@ public final class MenuBarManager: NSObject, NSMenuDelegate {
             emptyItem.isEnabled = false
             menu.addItem(emptyItem)
         } else {
-            for item in recent.prefix(35) {
+            for item in recent.prefix(30) {
                 let title = "   " + truncate(item.displayTitle, length: 30)
                 let menuItem = NSMenuItem(title: title, action: #selector(clipboardMenuItemClicked(_:)), keyEquivalent: "")
                 menuItem.target = self

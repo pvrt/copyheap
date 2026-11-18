@@ -7,6 +7,7 @@
 namespace copyheap {
 
 constexpr size_t MAX_UNPINNED_ITEMS = 200;
+constexpr size_t MAX_TRAY_UNPINNED = 30;
 constexpr size_t MAX_TRAY_ITEMS = 200;
 
 struct ClipboardItem {

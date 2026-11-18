@@ -60,10 +60,10 @@ TEST(Limits, TraySectionsLimit) {
     }
 
     auto [trayUnpinned, trayPinned] = sm.get_tray_sections();
-    // Tray must have up to 200 items in total
+    // Unpinned recent items in tray must strictly be capped at 30
+    ASSERT_EQ(trayUnpinned.size(), 30);
     ASSERT_EQ(trayPinned.size(), 100);
-    ASSERT_EQ(trayUnpinned.size(), 100); // 200 - 100 = 100
-    ASSERT_EQ(trayUnpinned.size() + trayPinned.size(), 200);
+    ASSERT_EQ(trayUnpinned[0].content, "Unpinned 149");
 }
 
 TEST(Limits, AtomicJsonSaveAndLoad) {
