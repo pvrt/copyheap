@@ -199,7 +199,7 @@ void MainWindow::create_controls() {
         m_hwnd, (HMENU)(INT_PTR)IDC_LISTVIEW, m_hInstance, nullptr
     );
     SendMessageW(m_hListView, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
-    ListView_SetExtendedListViewStyle(m_hListView, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_SUBITEMIMAGES);
+    ListView_SetExtendedListViewStyle(m_hListView, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
     SetWindowSubclass(m_hListView, ListViewSubclassProc, 4, (DWORD_PTR)this);
 
     if (m_hImageList) {
@@ -435,6 +435,7 @@ void MainWindow::refresh_list() {
         SendMessageW(m_hListView, LVM_INSERTITEMW, 0, (LPARAM)&lvi);
     }
 
+    InvalidateRect(m_hListView, nullptr, TRUE);
     on_list_selection_changed();
     update_status_bar();
 }
@@ -514,6 +515,9 @@ void MainWindow::draw_list_item(LPNMLVCUSTOMDRAW pcd) {
                                        : (isHot ? m_theme.card_border_hover : m_theme.card_border);
 
     FluentRenderer::draw_rounded_rectangle(g, cardRect, static_cast<float>(scale_px(6)), bg, border, isSelected ? 1.5f : 1.0f);
+
+    // Strictly clip rendering to cardRect so no drawing can leak outside the card
+    g.SetClip(cardRect);
 
     // Draw Pin indicator: modern blue dot for pinned items
     float dotSize = static_cast<float>(scale_px(6));
@@ -750,6 +754,14 @@ LRESULT CALLBACK MainWindow::EditorSubclassProc(HWND hwnd, UINT msg, WPARAM wPar
 LRESULT CALLBACK MainWindow::ListViewSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR dwRefData) {
     MainWindow* pThis = reinterpret_cast<MainWindow*>(dwRefData);
     if (!pThis) return DefSubclassProc(hwnd, msg, wParam, lParam);
+
+    if (msg == WM_ERASEBKGND) {
+        HDC hdc = reinterpret_cast<HDC>(wParam);
+        RECT rcClient{};
+        GetClientRect(hwnd, &rcClient);
+        FillRect(hdc, &rcClient, pThis->m_hWindowBrush);
+        return TRUE;
+    }
 
     if (msg == WM_PAINT) {
         LRESULT res = DefSubclassProc(hwnd, msg, wParam, lParam);
