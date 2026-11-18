@@ -190,6 +190,7 @@ void MainWindow::create_controls() {
         m_hwnd, (HMENU)(INT_PTR)IDC_ADD_BTN, m_hInstance, nullptr
     );
     SendMessageW(m_hAddBtn, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
+    SetWindowSubclass(m_hAddBtn, ButtonSubclassProc, 5, (DWORD_PTR)this);
 
     // ListView
     m_hListView = CreateWindowExW(
@@ -219,6 +220,7 @@ void MainWindow::create_controls() {
         m_hwnd, (HMENU)(INT_PTR)IDC_COPY_BTN, m_hInstance, nullptr
     );
     SendMessageW(m_hCopyBtn, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
+    SetWindowSubclass(m_hCopyBtn, ButtonSubclassProc, 6, (DWORD_PTR)this);
 
     m_hPinBtn = CreateWindowExW(
         0, L"BUTTON", L"Закрепить",
@@ -227,6 +229,7 @@ void MainWindow::create_controls() {
         m_hwnd, (HMENU)(INT_PTR)IDC_PIN_BTN, m_hInstance, nullptr
     );
     SendMessageW(m_hPinBtn, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
+    SetWindowSubclass(m_hPinBtn, ButtonSubclassProc, 7, (DWORD_PTR)this);
 
     m_hEditBtn = CreateWindowExW(
         0, L"BUTTON", L"Изменить...",
@@ -235,6 +238,7 @@ void MainWindow::create_controls() {
         m_hwnd, (HMENU)(INT_PTR)IDC_EDIT_BTN, m_hInstance, nullptr
     );
     SendMessageW(m_hEditBtn, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
+    SetWindowSubclass(m_hEditBtn, ButtonSubclassProc, 8, (DWORD_PTR)this);
 
     m_hDeleteBtn = CreateWindowExW(
         0, L"BUTTON", L"Удалить",
@@ -243,6 +247,7 @@ void MainWindow::create_controls() {
         m_hwnd, (HMENU)(INT_PTR)IDC_DELETE_BTN, m_hInstance, nullptr
     );
     SendMessageW(m_hDeleteBtn, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
+    SetWindowSubclass(m_hDeleteBtn, ButtonSubclassProc, 9, (DWORD_PTR)this);
 
     // Status bar
     m_hStatusBar = CreateWindowExW(
@@ -714,7 +719,10 @@ LRESULT CALLBACK MainWindow::SearchSubclassProc(HWND hwnd, UINT msg, WPARAM wPar
     if (!pThis) return DefSubclassProc(hwnd, msg, wParam, lParam);
 
     if (msg == WM_KEYDOWN) {
-        if (wParam == VK_ESCAPE) {
+        if ((wParam == 'F' || wParam == 'f') && (GetKeyState(VK_CONTROL) & 0x8000)) {
+            SendMessageW(hwnd, EM_SETSEL, 0, -1);
+            return 0;
+        } else if (wParam == VK_ESCAPE) {
             if (!pThis->m_searchQuery.empty()) {
                 SetWindowTextW(pThis->m_hSearchEdit, L"");
                 pThis->m_searchQuery.clear();
@@ -755,6 +763,17 @@ LRESULT CALLBACK MainWindow::ListViewSubclassProc(HWND hwnd, UINT msg, WPARAM wP
     MainWindow* pThis = reinterpret_cast<MainWindow*>(dwRefData);
     if (!pThis) return DefSubclassProc(hwnd, msg, wParam, lParam);
 
+    if (msg == WM_KEYDOWN) {
+        if ((wParam == 'F' || wParam == 'f') && (GetKeyState(VK_CONTROL) & 0x8000)) {
+            SetFocus(pThis->m_hSearchEdit);
+            SendMessageW(pThis->m_hSearchEdit, EM_SETSEL, 0, -1);
+            return 0;
+        } else if (wParam == VK_ESCAPE) {
+            pThis->hide();
+            return 0;
+        }
+    }
+
     if (msg == WM_ERASEBKGND) {
         HDC hdc = reinterpret_cast<HDC>(wParam);
         RECT rcClient{};
@@ -780,6 +799,25 @@ LRESULT CALLBACK MainWindow::ListViewSubclassProc(HWND hwnd, UINT msg, WPARAM wP
             }
         }
         return res;
+    }
+    return DefSubclassProc(hwnd, msg, wParam, lParam);
+}
+
+LRESULT CALLBACK MainWindow::ButtonSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR dwRefData) {
+    MainWindow* pThis = reinterpret_cast<MainWindow*>(dwRefData);
+    if (!pThis) return DefSubclassProc(hwnd, msg, wParam, lParam);
+
+    if (msg == WM_KEYDOWN) {
+        if ((wParam == 'F' || wParam == 'f') && (GetKeyState(VK_CONTROL) & 0x8000)) {
+            if (pThis->m_currentScreen == AppScreen::List) {
+                SetFocus(pThis->m_hSearchEdit);
+                SendMessageW(pThis->m_hSearchEdit, EM_SETSEL, 0, -1);
+                return 0;
+            }
+        } else if (wParam == VK_ESCAPE) {
+            pThis->hide();
+            return 0;
+        }
     }
     return DefSubclassProc(hwnd, msg, wParam, lParam);
 }
@@ -951,9 +989,10 @@ LRESULT MainWindow::handle_message(UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         case WM_KEYDOWN: {
-            if (wParam == 'F' && (GetKeyState(VK_CONTROL) & 0x8000)) {
+            if ((wParam == 'F' || wParam == 'f') && (GetKeyState(VK_CONTROL) & 0x8000)) {
                 if (m_currentScreen == AppScreen::List) {
                     SetFocus(m_hSearchEdit);
+                    SendMessageW(m_hSearchEdit, EM_SETSEL, 0, -1);
                     return 0;
                 }
             } else if (wParam == VK_ESCAPE) {
