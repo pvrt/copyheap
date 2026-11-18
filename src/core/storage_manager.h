@@ -50,6 +50,7 @@ public:
     size_t total_count() const;
 
     void clear();
+    void clear_history(bool keep_pinned = true);
 
     // Persistence
     static std::wstring get_default_storage_path();

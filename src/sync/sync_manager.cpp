@@ -86,6 +86,9 @@ bool SyncManager::setup_sync(const std::string& token, std::string& out_error) {
 }
 
 void SyncManager::worker_loop() {
+    auto lastPeriodicSync = std::chrono::steady_clock::now();
+    const auto periodicInterval = std::chrono::minutes(15);
+
     while (!m_stopWorker) {
         SyncCallback cb = nullptr;
         bool do_sync = false;
@@ -93,7 +96,8 @@ void SyncManager::worker_loop() {
 
         {
             std::unique_lock<std::mutex> lock(m_mutex);
-            m_cv.wait(lock, [this]() {
+            // Wait with a 1-minute timeout so periodic sync is checked every 15 minutes
+            m_cv.wait_for(lock, std::chrono::minutes(1), [this]() {
                 return m_stopWorker || m_syncPending || m_pushPending;
             });
 
@@ -107,6 +111,15 @@ void SyncManager::worker_loop() {
                 if (m_stopWorker) break;
             }
 
+            auto now = std::chrono::steady_clock::now();
+            if (!m_syncPending && !m_pushPending && (now - lastPeriodicSync >= periodicInterval)) {
+                const auto& cfg = m_config.get_config();
+                if (cfg.sync_enabled && !cfg.github_token.empty()) {
+                    m_syncPending = true;
+                }
+                lastPeriodicSync = now;
+            }
+
             do_sync = m_syncPending;
             do_push = m_pushPending;
             m_syncPending = false;
@@ -115,6 +128,7 @@ void SyncManager::worker_loop() {
         }
 
         if (do_sync) {
+            lastPeriodicSync = std::chrono::steady_clock::now();
             do_sync_locked(cb);
         } else if (do_push) {
             const auto& cfg = m_config.get_config();

@@ -76,11 +76,13 @@ void TrayIconManager::show_menu(
     OnItemCopyCallback on_copy,
     OnOpenCallback on_open,
     OnSyncCallback on_sync,
+    OnClearHistoryCallback on_clear_history,
     OnExitCallback on_exit)
 {
     m_on_copy = std::move(on_copy);
     m_on_open = std::move(on_open);
     m_on_sync = std::move(on_sync);
+    m_on_clear_history = std::move(on_clear_history);
     m_on_exit = std::move(on_exit);
     m_active_menu_items.clear();
 
@@ -239,6 +241,7 @@ void TrayIconManager::show_menu(
     // Block 3: System items
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_OPEN, L"Открыть");
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_SYNC, L"Настройки...");
+    AppendMenuW(hMenu, MF_STRING, ID_TRAY_CLEAR_HISTORY, L"Очистить историю");
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"Выход");
 
     // Track popup menu properly
@@ -259,6 +262,10 @@ bool TrayIconManager::handle_command(UINT cmdId) {
     }
     if (cmdId == ID_TRAY_SYNC) {
         if (m_on_sync) m_on_sync();
+        return true;
+    }
+    if (cmdId == ID_TRAY_CLEAR_HISTORY) {
+        if (m_on_clear_history) m_on_clear_history();
         return true;
     }
     if (cmdId == ID_TRAY_EXIT) {

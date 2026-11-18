@@ -2,10 +2,59 @@
 #include "string_utils.h"
 
 #include <windows.h>
+#include <wincrypt.h>
 #include <shlobj.h>
 #include <sstream>
+#include <vector>
 
 namespace copyheap {
+
+static std::string protect_token_dpapi(const std::string& token) {
+    if (token.empty()) return "";
+    DATA_BLOB dataIn;
+    dataIn.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(token.data()));
+    dataIn.cbData = static_cast<DWORD>(token.size());
+
+    DATA_BLOB dataOut;
+    if (CryptProtectData(&dataIn, L"CopyHeap GitHub Token", nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &dataOut)) {
+        DWORD strLen = 0;
+        CryptBinaryToStringA(dataOut.pbData, dataOut.cbData, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, nullptr, &strLen);
+        std::string b64(strLen, 0);
+        if (CryptBinaryToStringA(dataOut.pbData, dataOut.cbData, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, &b64[0], &strLen)) {
+            while (!b64.empty() && (b64.back() == '\0' || b64.back() == '\r' || b64.back() == '\n')) {
+                b64.pop_back();
+            }
+            LocalFree(dataOut.pbData);
+            return b64;
+        }
+        LocalFree(dataOut.pbData);
+    }
+    return "";
+}
+
+static std::string unprotect_token_dpapi(const std::string& b64) {
+    if (b64.empty()) return "";
+    DWORD binLen = 0;
+    if (!CryptStringToBinaryA(b64.data(), static_cast<DWORD>(b64.size()), CRYPT_STRING_BASE64, nullptr, &binLen, nullptr, nullptr)) {
+        return "";
+    }
+    std::vector<BYTE> cipher(binLen);
+    if (!CryptStringToBinaryA(b64.data(), static_cast<DWORD>(b64.size()), CRYPT_STRING_BASE64, cipher.data(), &binLen, nullptr, nullptr)) {
+        return "";
+    }
+
+    DATA_BLOB dataIn;
+    dataIn.pbData = cipher.data();
+    dataIn.cbData = binLen;
+
+    DATA_BLOB dataOut;
+    if (CryptUnprotectData(&dataIn, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &dataOut)) {
+        std::string token(reinterpret_cast<char*>(dataOut.pbData), dataOut.cbData);
+        LocalFree(dataOut.pbData);
+        return token;
+    }
+    return "";
+}
 
 static std::wstring get_default_config_path() {
     wchar_t localAppData[MAX_PATH];
@@ -149,7 +198,13 @@ bool ConfigManager::load() {
         }
     };
 
-    m_config.github_token = get_str_field("github_token");
+    std::string protectedToken = get_str_field("github_token_encrypted");
+    if (!protectedToken.empty()) {
+        m_config.github_token = unprotect_token_dpapi(protectedToken);
+    } else {
+        // Fallback for migration from unencrypted format
+        m_config.github_token = get_str_field("github_token");
+    }
     m_config.gist_id = get_str_field("gist_id");
     m_config.sync_enabled = get_bool_field("sync_enabled");
     m_config.last_sync_time = get_int64_field("last_sync_time");
@@ -165,9 +220,11 @@ bool ConfigManager::load() {
 }
 
 bool ConfigManager::save() {
+    std::string protectedToken = protect_token_dpapi(m_config.github_token);
+
     std::ostringstream ss;
     ss << "{\n"
-       << "  \"github_token\": \"" << json_escape(m_config.github_token) << "\",\n"
+       << "  \"github_token_encrypted\": \"" << json_escape(protectedToken) << "\",\n"
        << "  \"gist_id\": \"" << json_escape(m_config.gist_id) << "\",\n"
        << "  \"sync_enabled\": " << (m_config.sync_enabled ? "true" : "false") << ",\n"
        << "  \"last_sync_time\": " << m_config.last_sync_time << ",\n"

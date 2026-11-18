@@ -852,6 +852,19 @@ LRESULT MainWindow::handle_message(UINT msg, WPARAM wParam, LPARAM lParam) {
                         open_sync_dialog();
                     },
                     [this]() {
+                        int res = MessageBoxW(
+                            m_hwnd,
+                            L"Все записи истории будут удалены. Закреплённые сниппеты сохранятся.\n\nПродолжить?",
+                            L"Очистить историю?",
+                            MB_YESNO | MB_ICONWARNING | MB_TOPMOST
+                        );
+                        if (res == IDYES) {
+                            m_storage.clear_history(true);
+                            refresh_list();
+                            show_notification(L"✓ История очищена (закреплённые сохранены)");
+                        }
+                    },
+                    [this]() {
                         m_storage.flush_save();
                         m_tray.remove();
                         PostQuitMessage(0);
@@ -911,6 +924,9 @@ LRESULT MainWindow::handle_message(UINT msg, WPARAM wParam, LPARAM lParam) {
             if (id == ID_TRAY_SYNC) {
                 open_sync_dialog();
                 return 0;
+            }
+            if (id == ID_TRAY_CLEAR_HISTORY) {
+                if (m_tray.handle_command(id)) return 0;
             }
             if (id == ID_TRAY_EXIT) {
                 m_storage.flush_save();

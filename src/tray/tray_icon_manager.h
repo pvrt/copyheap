@@ -12,7 +12,8 @@ namespace copyheap {
 constexpr UINT WM_TRAY_ICON_NOTIFY = WM_APP + 1;
 constexpr UINT ID_TRAY_OPEN = 1001;
 constexpr UINT ID_TRAY_SYNC = 1002;
-constexpr UINT ID_TRAY_EXIT = 1003;
+constexpr UINT ID_TRAY_CLEAR_HISTORY = 1003;
+constexpr UINT ID_TRAY_EXIT = 1004;
 constexpr UINT ID_TRAY_ITEM_BASE = 2000;
 
 class TrayIconManager {
@@ -20,6 +21,7 @@ public:
     using OnItemCopyCallback = std::function<void(const std::string& content)>;
     using OnOpenCallback = std::function<void()>;
     using OnSyncCallback = std::function<void()>;
+    using OnClearHistoryCallback = std::function<void()>;
     using OnExitCallback = std::function<void()>;
 
     TrayIconManager();
@@ -32,6 +34,7 @@ public:
                    OnItemCopyCallback on_copy,
                    OnOpenCallback on_open,
                    OnSyncCallback on_sync,
+                   OnClearHistoryCallback on_clear_history,
                    OnExitCallback on_exit);
 
     bool handle_command(UINT cmdId);
@@ -52,6 +55,7 @@ private:
     OnItemCopyCallback m_on_copy;
     OnOpenCallback m_on_open;
     OnSyncCallback m_on_sync;
+    OnClearHistoryCallback m_on_clear_history;
     OnExitCallback m_on_exit;
 };
 

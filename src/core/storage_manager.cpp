@@ -107,6 +107,7 @@ bool StorageManager::add_or_update_from_clipboard(const std::string& content) {
         newItem.is_pinned = false;
         newItem.created_at = ts;
         newItem.pinned_at = 0;
+        newItem.update_cached_lower();
 
         m_unpinned.insert(m_unpinned.begin(), newItem);
         enforce_unpinned_limit_locked();
@@ -130,6 +131,7 @@ std::string StorageManager::add_item(const std::string& content, const std::stri
     item.is_pinned = is_pinned;
     item.created_at = ts;
     item.pinned_at = is_pinned ? ts : 0;
+    item.update_cached_lower();
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -154,6 +156,7 @@ bool StorageManager::update_item(const std::string& id, const std::string& new_t
                 item.title = new_title;
                 item.content = new_content;
                 item.content_hash = fnv1a_64(new_content);
+                item.update_cached_lower();
                 return true;
             }
         }
@@ -312,16 +315,23 @@ std::vector<ClipboardItem> StorageManager::search(const std::string& query) cons
         return get_all_items();
     }
 
+    std::wstring wQuery = utf8_to_wide(q);
+    if (!wQuery.empty()) {
+        CharLowerBuffW(&wQuery[0], static_cast<DWORD>(wQuery.size()));
+    }
+
     std::lock_guard<std::mutex> lock(m_mutex);
     std::vector<ClipboardItem> result;
 
     for (const auto& item : m_unpinned) {
-        if (contains_case_insensitive(item.title, q) || contains_case_insensitive(item.content, q)) {
+        if ((!item.title_lower.empty() && item.title_lower.find(wQuery) != std::wstring::npos) ||
+            (!item.content_lower.empty() && item.content_lower.find(wQuery) != std::wstring::npos)) {
             result.push_back(item);
         }
     }
     for (const auto& item : m_pinned) {
-        if (contains_case_insensitive(item.title, q) || contains_case_insensitive(item.content, q)) {
+        if ((!item.title_lower.empty() && item.title_lower.find(wQuery) != std::wstring::npos) ||
+            (!item.content_lower.empty() && item.content_lower.find(wQuery) != std::wstring::npos)) {
             result.push_back(item);
         }
     }
@@ -358,6 +368,15 @@ void StorageManager::clear() {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_unpinned.clear();
     m_pinned.clear();
+    request_save_debounced();
+}
+
+void StorageManager::clear_history(bool keep_pinned) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_unpinned.clear();
+    if (!keep_pinned) {
+        m_pinned.clear();
+    }
     request_save_debounced();
 }
 
@@ -534,6 +553,7 @@ bool StorageManager::load_from_file(const std::wstring& file_path) {
         if (item.content_hash == 0 && !item.content.empty()) {
             item.content_hash = fnv1a_64(item.content);
         }
+        item.update_cached_lower();
 
         if (item.is_pinned) {
             pinned.push_back(item);
@@ -723,6 +743,7 @@ std::vector<ClipboardItem> StorageManager::deserialize_pinned_json(const std::st
         if (item.content_hash == 0 && !item.content.empty()) {
             item.content_hash = fnv1a_64(item.content);
         }
+        item.update_cached_lower();
 
         if (!item.content.empty()) {
             items.push_back(item);
@@ -752,6 +773,7 @@ bool StorageManager::merge_pinned(const std::vector<ClipboardItem>& remote_pinne
                 it->content_hash = rem.content_hash;
                 it->pinned_at = rem.pinned_at;
                 it->created_at = rem.created_at;
+                it->update_cached_lower();
                 changed = true;
             }
         } else {
@@ -759,6 +781,7 @@ bool StorageManager::merge_pinned(const std::vector<ClipboardItem>& remote_pinne
             ClipboardItem newItem = rem;
             newItem.is_pinned = true;
             if (newItem.pinned_at == 0) newItem.pinned_at = now_ms();
+            newItem.update_cached_lower();
             m_pinned.push_back(newItem);
             changed = true;
         }

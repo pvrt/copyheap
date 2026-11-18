@@ -98,3 +98,24 @@ TEST(Storage, UpdateItem) {
     ASSERT_EQ(updated->title, "New Title");
     ASSERT_EQ(updated->content, "Updated Content");
 }
+
+TEST(Storage, ClearHistoryKeepsPinned) {
+    StorageManager sm;
+    sm.clear();
+
+    sm.add_or_update_from_clipboard("Recent 1");
+    sm.add_or_update_from_clipboard("Recent 2");
+    sm.add_item("Pinned 1", "Pin Title", true);
+
+    ASSERT_EQ(sm.unpinned_count(), 2);
+    ASSERT_EQ(sm.pinned_count(), 1);
+
+    sm.clear_history(true);
+
+    ASSERT_EQ(sm.unpinned_count(), 0);
+    ASSERT_EQ(sm.pinned_count(), 1);
+    ASSERT_EQ(sm.get_all_items()[0].content, "Pinned 1");
+
+    sm.clear_history(false);
+    ASSERT_EQ(sm.total_count(), 0);
+}

@@ -14,6 +14,8 @@ struct ClipboardItem {
     std::string id;
     std::string title;
     std::string content;
+    std::wstring title_lower;
+    std::wstring content_lower;
     uint64_t content_hash = 0;
     bool is_pinned = false;
     int64_t created_at = 0; // ms since epoch
@@ -21,6 +23,9 @@ struct ClipboardItem {
 
     // Display title: title if non-empty, else first non-empty line of content
     std::string get_display_title() const;
+
+    // Helper to refresh pre-computed lowercase fields
+    void update_cached_lower();
 };
 
 enum class PinResult {
