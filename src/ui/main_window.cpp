@@ -200,6 +200,7 @@ void MainWindow::create_controls() {
     );
     SendMessageW(m_hListView, WM_SETFONT, (WPARAM)m_hFontUI, TRUE);
     ListView_SetExtendedListViewStyle(m_hListView, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_SUBITEMIMAGES);
+    SetWindowSubclass(m_hListView, ListViewSubclassProc, 4, (DWORD_PTR)this);
 
     if (m_hImageList) {
         ListView_SetImageList(m_hListView, m_hImageList, LVSIL_SMALL);
@@ -742,6 +743,31 @@ LRESULT CALLBACK MainWindow::EditorSubclassProc(HWND hwnd, UINT msg, WPARAM wPar
             pThis->save_editor();
             return 0;
         }
+    }
+    return DefSubclassProc(hwnd, msg, wParam, lParam);
+}
+
+LRESULT CALLBACK MainWindow::ListViewSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR dwRefData) {
+    MainWindow* pThis = reinterpret_cast<MainWindow*>(dwRefData);
+    if (!pThis) return DefSubclassProc(hwnd, msg, wParam, lParam);
+
+    if (msg == WM_PAINT) {
+        LRESULT res = DefSubclassProc(hwnd, msg, wParam, lParam);
+        // Clean up gap above the first item to guarantee no stray dots/artifacts
+        RECT rcFirst{};
+        if (ListView_GetItemCount(hwnd) > 0 && ListView_GetItemRect(hwnd, 0, &rcFirst, LVIR_BOUNDS)) {
+            if (rcFirst.top > 0) {
+                HDC hdc = GetDC(hwnd);
+                RECT rcGap = {0, 0, rcFirst.right, rcFirst.top};
+                HBRUSH hBr = CreateSolidBrush(RGB(pThis->m_theme.window_bg.GetR(),
+                                                  pThis->m_theme.window_bg.GetG(),
+                                                  pThis->m_theme.window_bg.GetB()));
+                FillRect(hdc, &rcGap, hBr);
+                DeleteObject(hBr);
+                ReleaseDC(hwnd, hdc);
+            }
+        }
+        return res;
     }
     return DefSubclassProc(hwnd, msg, wParam, lParam);
 }
